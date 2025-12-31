@@ -1,0 +1,19 @@
+/node_modules
+/dist
+server/dist
+build
+
+# Environment variables
+.env
+.env.*
+.env.backup*
+!.env.example
+judge.log
+
+/cli/dist
+
+# macOS
+.DS_Store
+
+# Backup files
+*.backup*

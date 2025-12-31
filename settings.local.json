@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source .env)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(\"https://search-jpz-test-search-kqux2yahc2gscka73slawcsc6m.aos.us-east-1.on.aws/opensearch_dashboards_sample_data_logs/_search?size=1\")",
+      "Bash(\"https://search-jpz-test-search-kqux2yahc2gscka73slawcsc6m.aos.us-east-1.on.aws/opensearch_dashboards_sample_data_ecommerce/_search?size=1\")",
+      "mcp__filesystem__list_directory",
+      "mcp__builder-mcp__InternalSearch",
+      "mcp__builder-mcp__ReadInternalWebsites",
+      "Bash(xargs sed:*)",
+      "Bash(npm run build:*)",
+      "WebFetch(domain:opentelemetry.io)",
+      "Bash(grep:*)",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__list_pages",
+      "Bash(npx tsc:*)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__chrome-devtools__list_network_requests",
+      "Bash(find:*)",
+      "Bash(npm test:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true
+  }
+}

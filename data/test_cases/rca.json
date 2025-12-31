@@ -1,0 +1,122 @@
+[
+  {
+    "id": "tc-010",
+    "name": "Diagnose High Latency",
+    "description": "RCA scenario to diagnose high latency issues in a checkout service by analyzing traces across multiple microservices.",
+    "category": "RCA",
+    "difficulty": "Hard",
+    "initialPrompt": "Why are checkout requests slow?",
+    "context": [
+      {
+        "description": "Investigation notebooks application page context",
+        "value": "{\"appId\":\"investigation-notebooks\",\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\"}}}"
+      },
+      {
+        "description": "Investigation metadata for checkout latency issue",
+        "value": "{\"notebookId\":\"rca-latency-001\",\"metadata\":{\"dataSourceId\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"source\":\"Traces\",\"index\":\"jaeger-span*\",\"notebookType\":\"Agentic\",\"initialGoal\":\"Investigate why checkout requests are experiencing high latency\",\"timeField\":\"startTimeMillis\",\"timeRange\":{\"selectionFrom\":1763362800000,\"selectionTo\":1763363400000}}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Search for traces related to checkout service with high duration.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 2,
+        "description": "Analyze the trace spans to identify which service/operation is contributing to latency.",
+        "requiredTools": []
+      },
+      {
+        "step": 3,
+        "description": "Correlate with logs to find any errors or warnings during the slow requests.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 4,
+        "description": "Present root cause hypothesis with supporting evidence from traces and logs.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-011",
+    "name": "Find Error Root Cause",
+    "description": "RCA scenario to identify the root cause of 500 errors in a service.",
+    "category": "RCA",
+    "difficulty": "Medium",
+    "initialPrompt": "What caused the 500 errors?",
+    "context": [
+      {
+        "description": "Investigation notebooks application page context",
+        "value": "{\"appId\":\"investigation-notebooks\",\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\"}}}"
+      },
+      {
+        "description": "Investigation metadata for 500 error analysis",
+        "value": "{\"notebookId\":\"rca-errors-001\",\"metadata\":{\"dataSourceId\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"source\":\"Logs\",\"index\":\"app-logs*\",\"notebookType\":\"Agentic\",\"initialGoal\":\"Find root cause of HTTP 500 errors\",\"timeField\":\"@timestamp\",\"timeRange\":{\"selectionFrom\":1763362800000,\"selectionTo\":1763363400000}}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Search for logs with 500 error status codes to identify the scope and frequency.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 2,
+        "description": "Analyze error messages and stack traces to identify common patterns.",
+        "requiredTools": []
+      },
+      {
+        "step": 3,
+        "description": "Correlate errors with deployment events, config changes, or upstream dependencies.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 4,
+        "description": "Present root cause with recommendations for resolution.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-012",
+    "name": "Service Dependency Analysis",
+    "description": "RCA scenario to identify which service in a dependency chain is causing failures.",
+    "category": "RCA",
+    "difficulty": "Hard",
+    "initialPrompt": "Which service is failing?",
+    "context": [
+      {
+        "description": "Investigation notebooks application page context",
+        "value": "{\"appId\":\"investigation-notebooks\",\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\"}}}"
+      },
+      {
+        "description": "Investigation metadata for service failure analysis",
+        "value": "{\"notebookId\":\"rca-service-001\",\"metadata\":{\"dataSourceId\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"source\":\"Traces\",\"index\":\"otel-v1-apm-span*\",\"notebookType\":\"Agentic\",\"initialGoal\":\"Identify the failing service in the request chain\",\"timeField\":\"startTimeMillis\",\"timeRange\":{\"selectionFrom\":1763362800000,\"selectionTo\":1763363400000}}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Search for spans with error status to identify which services are experiencing failures.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 2,
+        "description": "Analyze the service dependency chain to identify the originating failure point.",
+        "requiredTools": []
+      },
+      {
+        "step": 3,
+        "description": "Check health metrics or logs of the identified failing service.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 4,
+        "description": "Present the failing service with evidence and potential causes.",
+        "requiredTools": []
+      }
+    ]
+  }
+]

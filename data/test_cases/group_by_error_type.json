@@ -1,0 +1,116 @@
+[
+  {
+    "id": "tc-gbet-001",
+    "name": "Group by Error Type - With PPL Parse Documentation",
+    "description": "Test if agent can generate correct PPL parse command to extract and group error summaries when PPL documentation is provided in context.",
+    "category": "Group by Error Type",
+    "subcategory": "With Context",
+    "difficulty": "Medium",
+    "initialPrompt": "What are the top error types in the logs?",
+    "tools": [
+      {
+        "name": "execute_ppl_query",
+        "description": "Update the query bar with a PPL query and optionally execute it, this client tool cannot be used to generate PPL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The PPL query to set in the query bar"
+            },
+            "autoExecute": {
+              "type": "boolean",
+              "description": "Whether to automatically execute the query (default: true)"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of what the query does"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    ],
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"otel-playground\",\"type\":\"OpenSearch\"},\"id\":\"logs-otel-v1\",\"timeFieldName\":\"time\",\"title\":\"logs-otel-v1*\",\"type\":\"INDEX_PATTERN\"}}"
+      },
+      {
+        "description": "Sample error log messages from this index",
+        "value": "[\"Order parsing failed: invalid JSON\", \"Failed to write message: kafka: client has run out of available brokers\", \"Consume error: {0}\", \"Browser.new_context: Target page, context or browser has been closed\"]"
+      },
+      {
+        "description": "Index field mappings",
+        "value": "{\"body\":\"text field containing log messages\",\"severityText\":\"keyword - INFO/ERROR/WARN/Error\",\"time\":\"timestamp field\",\"resource.attributes.service.name\":\"service name field\"}"
+      },
+      {
+        "description": "PPL Parse Command Documentation (from OpenSearch)",
+        "value": "The parse command parses a text field with a regular expression and appends the result to the search result.\\n\\nSyntax: parse <field> <pattern>\\n\\n- field: mandatory. The field must be a text field.\\n- pattern: mandatory. The regular expression pattern used to extract new fields from the given text field.\\n\\nRegular Expression: The pattern uses Java regex engine. Each named capture group in the expression will become a new STRING field.\\n\\nNamed capture group syntax: (?<fieldName>pattern)\\n\\nIMPORTANT: Named capture group must start with a letter and contain only letters and digits (NO underscores allowed).\\n\\nExample - Extract host from email:\\nparse email '.+@(?<host>.+)' | fields email, host\\n\\nExample - Extract first line from multi-line text:\\nparse body '^(?<firstLine>[^\\\\n]+)'\\n\\nTo get error type distribution, parse the first line of the body field and aggregate:\\nsource = index | where severityText = 'ERROR' | parse body '^(?<errorSummary>[^\\\\n]+)' | stats count() as cnt by errorSummary | sort - cnt | head 10"
+      }
+    ],
+    "expectedPPL": "source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | parse body '^(?<errorSummary>[^\\n]+)' | stats count() as cnt by errorSummary | sort - cnt | head 10",
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Generate PPL query using parse command to extract error summary from first line and aggregate: source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | parse body '^(?<errorSummary>[^\\n]+)' | stats count() as cnt by errorSummary | sort - cnt | head 10",
+        "requiredTools": ["execute_ppl_query"]
+      }
+    ]
+  },
+  {
+    "id": "tc-gbet-002",
+    "name": "Group by Error Type - Without PPL Parse Documentation",
+    "description": "Test if agent can generate correct PPL parse command to extract and group error summaries WITHOUT PPL documentation - relying on model's built-in knowledge.",
+    "category": "Group by Error Type",
+    "subcategory": "Without Context",
+    "difficulty": "Hard",
+    "initialPrompt": "What are the top error types in the logs?",
+    "tools": [
+      {
+        "name": "execute_ppl_query",
+        "description": "Update the query bar with a PPL query and optionally execute it",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The PPL query to set in the query bar"
+            },
+            "autoExecute": {
+              "type": "boolean",
+              "description": "Whether to automatically execute the query (default: true)"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of what the query does"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    ],
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"otel-playground\",\"type\":\"OpenSearch\"},\"id\":\"logs-otel-v1\",\"timeFieldName\":\"time\",\"title\":\"logs-otel-v1*\",\"type\":\"INDEX_PATTERN\"}}"
+      },
+      {
+        "description": "Sample error log messages from this index",
+        "value": "[\"Order parsing failed: invalid JSON\", \"Failed to write message: kafka: client has run out of available brokers\", \"Consume error: {0}\", \"Browser.new_context: Target page, context or browser has been closed\"]"
+      },
+      {
+        "description": "Index field mappings",
+        "value": "{\"body\":\"text field containing log messages\",\"severityText\":\"keyword - INFO/ERROR/WARN/Error\",\"time\":\"timestamp field\"}"
+      }
+    ],
+    "expectedPPL": "source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | parse body '^(?<errorSummary>[^\\n]+)' | stats count() as cnt by errorSummary | sort - cnt | head 10",
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Generate PPL query using parse command to extract error summary from first line and aggregate: source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | parse body '^(?<errorSummary>[^\\n]+)' | stats count() as cnt by errorSummary | sort - cnt | head 10",
+        "requiredTools": ["execute_ppl_query"]
+      }
+    ]
+  }
+]

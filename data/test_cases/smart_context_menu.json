@@ -1,0 +1,152 @@
+[
+  {
+    "id": "tc-005",
+    "name": "Detect Error Codes",
+    "description": "Test AI detection of error codes in logs and generation of appropriate PPL where command to filter by error code.",
+    "category": "Smart Contextual Menu",
+    "difficulty": "Easy",
+    "initialPrompt": "Filter logs with ERROR-500",
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-15m\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"logs*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Detect that ERROR-500 is an error code pattern and plan to filter logs by this value.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Generate a PPL query with where command to filter for ERROR-500 (e.g., source=logs* | where error_code='ERROR-500').",
+        "requiredTools": ["execute_ppl_query"]
+      }
+    ]
+  },
+  {
+    "id": "tc-006",
+    "name": "Parse JSON Fields",
+    "description": "Test AI detection of JSON content in logs and generation of appropriate spath command to extract fields.",
+    "category": "Smart Contextual Menu",
+    "difficulty": "Medium",
+    "initialPrompt": "Extract the user_id from this JSON log",
+    "context": [
+      {
+        "description": "Explore application page context with JSON logs",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-15m\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"json-logs*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Recognize that user_id needs to be extracted from JSON structured log data.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Generate a PPL query using parse or eval to extract the user_id field from JSON logs.",
+        "requiredTools": ["execute_ppl_query"]
+      },
+      {
+        "step": 3,
+        "description": "Display the extracted user_id values from the logs.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-007",
+    "name": "Filter by IP Address",
+    "description": "Test AI detection of IP address pattern and generation of where command to filter by IP.",
+    "category": "Smart Contextual Menu",
+    "difficulty": "Easy",
+    "initialPrompt": "Show me all requests from 192.168.1.100",
+    "context": [
+      {
+        "description": "Explore application page context with access logs",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-1h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"access-logs*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Detect that 192.168.1.100 is an IP address and identify the appropriate field to filter on (client_ip, source_ip, etc.).",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Generate a PPL query with where command to filter for the IP address.",
+        "requiredTools": ["execute_ppl_query"]
+      },
+      {
+        "step": 3,
+        "description": "Present the filtered results showing all requests from 192.168.1.100.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-008",
+    "name": "Aggregate by Timestamp",
+    "description": "Test AI generation of timechart command to show error counts over time.",
+    "category": "Smart Contextual Menu",
+    "difficulty": "Medium",
+    "initialPrompt": "Show error count over time",
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"logs*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Understand that the user wants a time-series aggregation of errors.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Generate a PPL query using stats with span() to aggregate error counts over time intervals.",
+        "requiredTools": ["execute_ppl_query"]
+      },
+      {
+        "step": 3,
+        "description": "Present the time-series data showing error counts over the time range.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-009",
+    "name": "Top Values Analysis",
+    "description": "Test AI generation of top command to find most frequent error types.",
+    "category": "Smart Contextual Menu",
+    "difficulty": "Easy",
+    "initialPrompt": "What are the top 10 error types?",
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"error-logs*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Understand the user wants to find the most frequent error types.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Generate a PPL query using stats count() by error_type with head 10 or top command to get top 10 error types.",
+        "requiredTools": ["execute_ppl_query"]
+      },
+      {
+        "step": 3,
+        "description": "Present the top 10 error types ranked by frequency.",
+        "requiredTools": []
+      }
+    ]
+  }
+]

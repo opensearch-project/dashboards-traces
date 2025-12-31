@@ -1,0 +1,207 @@
+/**
+ * Server-side Storage Services
+ *
+ * Core OpenSearch operations extracted from routes.
+ * Used by both routes and server-side code like experimentRunner.
+ */
+
+import { getOpenSearchClient, INDEXES } from '../opensearchClient';
+
+// ==================== Test Cases ====================
+
+/**
+ * Get all test cases (latest versions)
+ */
+export async function getAllTestCases(): Promise<any[]> {
+  const client = getOpenSearchClient();
+  const result = await client.search({
+    index: INDEXES.testCases,
+    body: {
+      size: 0,
+      aggs: {
+        test_cases: {
+          terms: { field: 'id', size: 10000 },
+          aggs: {
+            latest: {
+              top_hits: { size: 1, sort: [{ version: { order: 'desc' } }] },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return (
+    (result.body.aggregations?.test_cases as any)?.buckets?.map(
+      (bucket: any) => bucket.latest.hits.hits[0]._source
+    ) || []
+  );
+}
+
+/**
+ * Get test case by ID (latest version)
+ */
+export async function getTestCaseById(id: string): Promise<any | null> {
+  const client = getOpenSearchClient();
+  const result = await client.search({
+    index: INDEXES.testCases,
+    body: {
+      size: 1,
+      sort: [{ version: { order: 'desc' } }],
+      query: { term: { id } },
+    },
+  });
+
+  return result.body.hits?.hits?.[0]?._source || null;
+}
+
+// ==================== Runs ====================
+
+/**
+ * Create a run
+ */
+export async function createRun(run: any): Promise<any> {
+  const client = getOpenSearchClient();
+  const id = run.id || generateId('run');
+  const createdAt = new Date().toISOString();
+
+  const doc = {
+    ...run,
+    id,
+    createdAt,
+    annotations: run.annotations || [],
+  };
+
+  await client.index({
+    index: INDEXES.runs,
+    id,
+    body: doc,
+    refresh: true,
+  });
+
+  // Write analytics (non-blocking)
+  writeAnalyticsRecord(doc).catch((e) =>
+    console.warn('[StorageService] Analytics write failed:', e.message)
+  );
+
+  return doc;
+}
+
+/**
+ * Get run by ID
+ */
+export async function getRunById(id: string): Promise<any | null> {
+  const client = getOpenSearchClient();
+  try {
+    const result = await client.get({ index: INDEXES.runs, id });
+    return result.body.found ? result.body._source : null;
+  } catch (error: any) {
+    if (error.meta?.statusCode === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Partial update of a run
+ */
+export async function updateRun(id: string, updates: any): Promise<any> {
+  const client = getOpenSearchClient();
+  await client.update({
+    index: INDEXES.runs,
+    id,
+    body: { doc: updates },
+    refresh: true,
+  });
+
+  const result = await client.get({ index: INDEXES.runs, id });
+  return result.body._source;
+}
+
+/**
+ * Save an evaluation report (converts from app format to storage format)
+ */
+export async function saveReport(
+  report: any,
+  options?: { experimentId?: string; experimentRunId?: string; iteration?: number }
+): Promise<any> {
+  const storageData: any = {
+    experimentId: options?.experimentId || '',
+    experimentRunId: options?.experimentRunId || '',
+    testCaseId: report.testCaseId,
+    testCaseVersionId: `${report.testCaseId}-v${report.testCaseVersion || 1}`,
+    agentId: report.agentKey || report.agentName,
+    modelId: report.modelId || report.modelName,
+    iteration: options?.iteration || 1,
+    status: report.status,
+    passFailStatus: report.passFailStatus,
+    traceId: report.runId,
+    tags: [],
+    actualOutcomes: [],
+    llmJudgeReasoning: report.llmJudgeReasoning,
+    metrics: report.metrics,
+    trajectory: report.trajectory,
+    rawEvents: report.rawEvents,
+    logs: report.logs || report.openSearchLogs,
+    improvementStrategies: report.improvementStrategies,
+  };
+
+  // Add trace-mode fields if present
+  if (report.metricsStatus !== undefined) storageData.metricsStatus = report.metricsStatus;
+  if (report.traceFetchAttempts !== undefined) storageData.traceFetchAttempts = report.traceFetchAttempts;
+  if (report.lastTraceFetchAt !== undefined) storageData.lastTraceFetchAt = report.lastTraceFetchAt;
+  if (report.traceError !== undefined) storageData.traceError = report.traceError;
+  if (report.spans !== undefined) storageData.spans = report.spans;
+
+  const created = await createRun(storageData);
+
+  // Return in app format
+  return {
+    ...report,
+    id: created.id,
+    timestamp: created.createdAt,
+    experimentId: created.experimentId || undefined,
+    experimentRunId: created.experimentRunId || undefined,
+  };
+}
+
+// ==================== Helpers ====================
+
+function generateId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+async function writeAnalyticsRecord(run: any): Promise<void> {
+  const client = getOpenSearchClient();
+  const analyticsDoc: any = {
+    analyticsId: `analytics-${run.id}`,
+    runId: run.id,
+    experimentId: run.experimentId,
+    experimentRunId: run.experimentRunId,
+    testCaseId: run.testCaseId,
+    testCaseVersionId: run.testCaseVersionId,
+    traceId: run.traceId,
+    agentId: run.agentId,
+    modelId: run.modelId,
+    iteration: run.iteration || 1,
+    tags: run.tags || [],
+    passFailStatus: run.passFailStatus,
+    status: run.status,
+    createdAt: run.createdAt,
+    author: run.author,
+  };
+
+  if (run.metrics) {
+    for (const [key, value] of Object.entries(run.metrics)) {
+      analyticsDoc[`metric_${key}`] = value;
+    }
+  }
+
+  await client.index({
+    index: INDEXES.analytics,
+    id: analyticsDoc.analyticsId,
+    body: analyticsDoc,
+    refresh: true,
+  });
+}

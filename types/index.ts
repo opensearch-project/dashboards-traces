@@ -1,0 +1,535 @@
+// Shared type for difficulty levels
+export type Difficulty = 'Easy' | 'Medium' | 'Hard';
+
+// Date formatting variants
+export type DateFormatVariant = 'date' | 'datetime' | 'detailed';
+
+export interface ModelConfig {
+  model_id: string;
+  display_name: string;
+  context_window: number;
+  max_output_tokens: number;
+}
+
+export interface AgentConfig {
+  key: string; // Unique identifier for the agent (used for env var prefix)
+  name: string;
+  endpoint: string;
+  description?: string;
+  enabled?: boolean;
+  models: string[]; // Keys referring to ModelConfig
+  headers?: Record<string, string>; // Custom headers for agent endpoint (e.g., AWS credentials)
+  useTraces?: boolean; // When true, fetch traces instead of logs for evaluation
+}
+
+export interface AppConfig {
+  agents: AgentConfig[];
+  models: Record<string, ModelConfig>;
+  defaults: {
+    retry_attempts: number;
+    retry_delay_ms: number;
+  };
+}
+
+export enum ToolCallStatus {
+  SUCCESS = 'SUCCESS',
+  FAILURE = 'FAILURE',
+}
+
+export interface TrajectoryStep {
+  id: string;
+  timestamp: number;
+  type: 'tool_result' | 'assistant' | 'action' | 'response' | 'thinking';
+  content: string;
+  toolName?: string;
+  toolArgs?: Record<string, any>;
+  toolOutput?: any;
+  status?: ToolCallStatus;
+  latencyMs?: number;
+}
+
+export interface EvaluationMetrics {
+  accuracy: number; // 0-100
+  // Legacy metrics - kept for backwards compatibility with old reports
+  faithfulness?: number; // 0-100 (deprecated)
+  latency_score?: number; // 0-100 (deprecated)
+  trajectory_alignment_score?: number; // 0-100 (deprecated)
+}
+
+export interface ImprovementStrategy {
+  category: string;
+  issue: string;
+  recommendation: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export type PassFailStatus = 'passed' | 'failed';
+
+// Storage feature - LLM Judge Response tracking
+export interface LLMJudgeResponse {
+  modelId: string;
+  timestamp: string;
+  promptTokens: number;
+  completionTokens: number;
+  latencyMs: number;
+  rawResponse: string;
+  parsedMetrics?: {
+    accuracy: number;
+    faithfulness: number;
+    latency_score: number;
+    trajectory_alignment_score: number;
+  };
+  improvementStrategies?: ImprovementStrategy[];
+  error?: string;
+}
+
+// Storage feature - User annotations on runs
+export interface RunAnnotation {
+  id: string;
+  reportId: string;
+  text: string;
+  timestamp: string;
+  tags?: string[];
+  author?: string;
+}
+
+// Metrics status for trace-mode runs (traces take ~5 min to propagate)
+export type MetricsStatus = 'pending' | 'calculating' | 'ready' | 'error';
+
+// TestCaseRun = result of running a specific test case version (renamed from EvaluationReport)
+export interface TestCaseRun {
+  id: string;
+  timestamp: string;
+  testCaseId: string;
+  testCaseVersion?: number;          // Which version was run (optional for backwards compatibility)
+  experimentId?: string;             // ID of the experiment this run belongs to
+  experimentRunId?: string;          // ID of the experiment run config this run belongs to
+
+  // Execution context
+  agentName: string;
+  agentKey?: string;
+  modelName: string;
+  modelId?: string;
+  agentEndpoint?: string;
+
+  // Results
+  status: 'running' | 'completed' | 'failed';
+  passFailStatus?: PassFailStatus; // LLM judge determination of pass/fail
+  trajectory: TrajectoryStep[];
+  metrics: EvaluationMetrics;
+  llmJudgeReasoning: string;
+  improvementStrategies?: ImprovementStrategy[];
+  llmJudgeResponse?: LLMJudgeResponse; // Storage: Raw Bedrock judge response
+  openSearchLogs?: OpenSearchLog[]; // Storage: Persisted logs (alternative to logs)
+  annotations?: RunAnnotation[]; // Storage: User notes on this run
+  runId?: string; // Agent's run ID from AG UI events (for log correlation)
+  logs?: OpenSearchLog[]; // OpenSearch logs for the run (master version)
+  rawEvents?: any[]; // Raw AG UI events for debugging
+
+  // Trace mode fields (for agents with useTraces: true)
+  metricsStatus?: MetricsStatus; // Status of deferred metrics/judge calculation
+  traceFetchAttempts?: number; // Number of polling attempts for traces
+  lastTraceFetchAt?: string; // Timestamp of last trace fetch attempt
+  traceError?: string; // Error message if trace fetch failed
+  spans?: Span[]; // Fetched trace spans for debugging
+}
+
+// Alias for backwards compatibility during migration
+export type EvaluationReport = TestCaseRun;
+
+export interface AgentContextItem {
+  description: string;
+  value: string; // JSON stringified context data
+}
+
+// Tool definition matching AG-UI/CopilotKit format
+export interface AgentToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, {
+      type: string;
+      description: string;
+      enum?: string[];
+    }>;
+    required?: string[];
+  };
+}
+
+// Category = grouping for use cases (e.g., 'Group by Error Type')
+export type Category = 'Baseline' | 'Smart Contextual Menu' | 'RCA' | 'Conversational Queries' | 'Top 10 Browsed Products' | 'Errors by Service' | 'Group by Error Type' | string;
+
+// Version snapshot - immutable record of test case content at a point in time
+export interface TestCaseVersion {
+  version: number;
+  createdAt: string;
+
+  // Content fields (snapshot)
+  initialPrompt: string;
+  context: AgentContextItem[];
+  tools?: AgentToolDefinition[];
+  expectedPPL?: string;
+  expectedOutcomes?: string[];  // NEW: Simple text descriptions of expected behavior
+  expectedTrajectory?: {  // Keep for backwards compat
+    step: number;
+    description: string;
+    requiredTools: string[];
+  }[];
+  followUpQuestions?: {
+    trigger: 'results_available' | 'error' | 'always';
+    question: string;
+    businessValue: string;
+  }[];
+}
+
+// TestCase is referred to as "Use Case" in the UI
+export interface TestCase {
+  id: string;
+  name: string;
+  description: string;
+
+  // Labels - unified tagging system (replaces category/subcategory/difficulty)
+  labels: string[];
+
+  // Legacy fields - kept for backward compatibility during migration
+  // These are derived from labels if labels exist, otherwise from stored values
+  /** @deprecated Use labels with 'category:' prefix instead */
+  category: Category;
+  /** @deprecated Use labels with 'subcategory:' prefix instead */
+  subcategory?: string;
+  /** @deprecated Use labels with 'difficulty:' prefix instead */
+  difficulty: Difficulty;
+
+  // Versioning
+  currentVersion: number;           // Latest version number
+  versions: TestCaseVersion[];      // All versions (immutable history)
+
+  // Metadata
+  isPromoted: boolean;              // Available for experiments
+  createdAt: string;
+  updatedAt: string;
+
+  // Current version content (convenience accessors - mirrors latest version)
+  initialPrompt: string;
+  context: AgentContextItem[]; // AG-UI format context passed to agent
+  tools?: AgentToolDefinition[]; // Tools available to the agent (client-provided)
+  expectedPPL?: string; // Expected PPL query for validation
+  expectedOutcomes?: string[];  // NEW: Simple text descriptions of expected behavior
+  expectedTrajectory?: {  // Keep for backwards compat
+    step: number;
+    description: string;
+    requiredTools: string[];
+  }[];
+  followUpQuestions?: { // Suggested follow-ups after results
+    trigger: 'results_available' | 'error' | 'always';
+    question: string;
+    businessValue: string;
+  }[];
+}
+
+export interface OpenSearchLog {
+  timestamp: string;
+  index: string;
+  message: string;
+  level?: string;
+  source?: string;
+  [key: string]: any; // Allow additional fields
+}
+
+export interface LogQueryParams {
+  startTime: Date;
+  endTime: Date;
+  size?: number;
+  query?: string;
+}
+
+// ============ Trace Metrics ============
+
+export interface TraceMetrics {
+  runId: string;
+  traceId?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  durationMs: number;
+  llmCalls: number;
+  toolCalls: number;
+  toolsUsed: string[];
+  status: 'success' | 'error' | 'pending';
+}
+
+// ============ Trace Types ============
+
+export interface SpanEvent {
+  name: string;
+  time: string;
+  attributes?: Record<string, any>;
+}
+
+export interface Span {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  duration?: number;
+  status: 'OK' | 'ERROR' | 'UNSET';
+  attributes: Record<string, any>;
+  events?: SpanEvent[];
+  children?: Span[];
+  depth?: number;
+  hasChildren?: boolean;
+}
+
+export interface TimeRange {
+  startTime: number;
+  endTime: number;
+  duration: number;
+}
+
+export interface TraceQueryParams {
+  traceId?: string;
+  runIds?: string[];
+  startTime?: Date;
+  endTime?: Date;
+  size?: number;
+}
+
+export interface TraceSearchResult {
+  spans: Span[];
+  total: number;
+}
+
+// ============ Experiment Types ============
+
+// Result status for a single use case within a run
+export type RunResultStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+// Overall status for an experiment run (tracks server-side execution state)
+export type ExperimentRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+// Point-in-time snapshot (renamed from ExperimentVariant)
+// Each run captures config + results at a moment in time
+export interface ExperimentRun {
+  id: string;
+  name: string;                    // e.g., "Baseline", "With Fix v1", "Claude 4 Test"
+  description?: string;            // Optional description of what this run tests
+  createdAt: string;               // When this run was created
+
+  // Execution status (tracks server-side execution progress)
+  status?: ExperimentRunStatus;    // Overall run status (undefined = legacy data, treat as completed)
+  error?: string;                  // Error message if status is 'failed'
+
+  // Configuration snapshot
+  agentKey: string;                // Reference to AgentConfig.key
+  agentEndpoint?: string;          // Override agent endpoint (optional)
+  modelId: string;                 // Model to use
+  headers?: Record<string, string>; // Custom headers
+
+  // Results (directly embedded, no separate VariantRun type)
+  results: Record<string, {        // testCaseId → result
+    reportId: string;              // References EvaluationReport.id
+    status: RunResultStatus;
+  }>;
+}
+
+// Parent entity - persisted to localStorage['experiments']
+export interface Experiment {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  testCaseIds: string[];           // Selected test case IDs (TestCase.id)
+  runs: ExperimentRun[];           // Point-in-time snapshots (can add more anytime)
+}
+
+// Progress callback for experiment runner
+export interface ExperimentProgress {
+  currentTestCaseIndex: number;
+  totalTestCases: number;
+  currentRunId: string;
+  currentTestCaseId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+}
+
+// SSE event payload when experiment run starts
+export interface ExperimentStartedEvent {
+  runId: string;
+  testCases: Array<{ id: string; name: string; status: 'pending' }>;
+}
+
+// ============ Comparison Types ============
+
+// Test case version reference for detecting changes between runs in comparisons
+export interface TestCaseVersionRef {
+  id: string;
+  version: string;      // e.g., "v1", "v2"
+  hash: string;         // Hash of expectedTrajectory for change detection
+}
+
+// Aggregate metrics for a single run
+export interface RunAggregateMetrics {
+  runId: string;
+  runName: string;
+  createdAt: string;
+  modelId: string;
+  totalTestCases: number;
+  passedCount: number;
+  failedCount: number;
+  avgAccuracy: number;
+  passRatePercent: number;
+  // Trace metrics (optional - populated from metrics API)
+  totalTokens?: number;
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
+  totalCostUsd?: number;
+  avgDurationMs?: number;
+  totalLlmCalls?: number;
+  totalToolCalls?: number;
+}
+
+// Result for a single test case within a run
+export interface TestCaseRunResult {
+  reportId?: string;
+  status: 'completed' | 'failed' | 'missing';
+  passFailStatus?: PassFailStatus;
+  accuracy?: number;
+  faithfulness?: number;
+  trajectoryAlignment?: number;
+  latencyScore?: number;
+  testCaseVersion?: string;
+}
+
+// Per-test-case comparison row
+export interface TestCaseComparisonRow {
+  testCaseId: string;
+  testCaseName: string;
+  labels: string[]; // Unified labels system
+  /** @deprecated Use labels instead */
+  category: Category;
+  /** @deprecated Use labels instead */
+  difficulty: Difficulty;
+  results: Record<string, TestCaseRunResult>; // keyed by runId
+  hasVersionDifference: boolean;
+  versions: string[]; // unique versions across runs
+}
+
+// ============ Derived Types ============
+
+// Derived type for creating new experiment runs - stays in sync with ExperimentRun
+export type RunConfigInput = Pick<ExperimentRun,
+  'name' | 'description' | 'agentKey' | 'modelId' | 'agentEndpoint' | 'headers'
+>;
+
+// ============ Server/API Types ============
+
+// Express type helpers (for server routes)
+import type { Request, Response } from 'express';
+
+export interface TypedRequest<T = any> extends Request {
+  body: T;
+}
+
+export interface TypedResponse<T = any> extends Response {
+  json: (body: T) => this;
+}
+
+// Expected step format for judge evaluation
+export interface ExpectedStep {
+  description: string;
+  requiredTools?: string[];
+}
+
+// API request/response types
+export interface JudgeRequest {
+  trajectory: TrajectoryStep[];
+  expectedTrajectory: ExpectedStep[];
+  logs?: OpenSearchLog[];
+}
+
+export interface JudgeResponse {
+  passFailStatus: PassFailStatus;
+  metrics: EvaluationMetrics;
+  llmJudgeReasoning: string;
+  improvementStrategies: ImprovementStrategy[];
+  duration: number;
+}
+
+export interface AgentProxyRequest {
+  endpoint: string;
+  payload: any;
+  headers?: Record<string, string>;
+}
+
+export interface StorageConfig {
+  endpoint?: string;
+  username?: string;
+  password?: string;
+  indexes: {
+    testCases: string;
+    experiments: string;
+    runs: string;
+    analytics: string;
+  };
+}
+
+export interface OpenSearchConfig {
+  endpoint: string;
+  username: string;
+  password: string;
+  indexPattern: string;
+}
+
+export interface LogsQuery {
+  runId?: string;
+  query?: string;
+  startTime?: number;
+  endTime?: number;
+  size?: number;
+}
+
+export interface LogsResponse {
+  hits: { hits: any[]; total: any };
+  logs: OpenSearchLog[];
+  total: number;
+}
+
+export interface HealthStatus {
+  status: 'ok' | 'error' | 'not_configured';
+  error?: string;
+  index?: string;
+  cluster?: any;
+}
+
+export interface AggregateMetrics {
+  totalRuns: number;
+  successRate: number;
+  totalCostUsd: number;
+  avgCostUsd: number;
+  avgDurationMs: number;
+  p50DurationMs: number;
+  p95DurationMs: number;
+  avgTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  avgLlmCalls: number;
+  avgToolCalls: number;
+}
+
+export interface MetricsResult {
+  runId: string;
+  traceId: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd: number;
+  durationMs: number;
+  llmCalls: number;
+  toolCalls: number;
+  toolsUsed: string[];
+  status: 'pending' | 'success' | 'error';
+}

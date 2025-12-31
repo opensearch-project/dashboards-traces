@@ -1,0 +1,151 @@
+[
+  {
+    "id": "tc-000",
+    "name": "Simple: What time is it?",
+    "description": "Basic test to check if the agent can respond to a simple question about time.",
+    "category": "Baseline",
+    "difficulty": "Easy",
+    "initialPrompt": "What time is it right now?",
+    "context": [],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Agent should respond with the current time or acknowledge it cannot access system time.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-001",
+    "name": "Index Existence Check",
+    "description": "Simple query to check if workflow_runs logs exist in the osd-ops cluster.",
+    "category": "Baseline",
+    "difficulty": "Easy",
+    "initialPrompt": "Do I have any logs for my workflow runs in osd-ops cluster?",
+    "context": [],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "List all indices in the osd-ops cluster to discover available log indices.",
+        "requiredTools": ["Index_manager"]
+      },
+      {
+        "step": 2,
+        "description": "Identify the workflow_runs index from the list of available indices.",
+        "requiredTools": []
+      },
+      {
+        "step": 3,
+        "description": "Confirm that workflow run logs exist and respond with a positive confirmation.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-002",
+    "name": "Expand Search Query for RCA Investigation",
+    "description": "Test case to verify agent handles search expansion requests during an active investigation about high latency in checkout service. Validates that SearchIndexTool is called correctly without duplicate tool call arguments.",
+    "category": "Baseline",
+    "difficulty": "Medium",
+    "initialPrompt": "Can you expand search to get more findings?",
+    "context": [
+      {
+        "description": "Investigation notebooks application page context",
+        "value": "{\"appId\":\"investigation-notebooks\",\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\"}}}"
+      },
+      {
+        "description": "Metadata, hypotheses and findings for the investigation",
+        "value": "{\"notebookId\":\"84ef92c0-d011-11f0-a354-f705992ab530\",\"metadata\":{\"dataSourceId\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"source\":\"Discover\",\"index\":\"jaeger-span*\",\"notebookType\":\"Agentic\",\"initialGoal\":\"Why so many requests against checkout service take more than 10s? Firstly you need to find a traceId whose checkout service has high latency from the jaeger-span index, then search the log index ss4o_logs-2025-11-17 by the traceId, check the related logs to find the root cause.\",\"timeField\":\"startTimeMillis\",\"currentTime\":1764743395543,\"timeRange\":{\"selectionFrom\":1763362800000,\"selectionTo\":1763363400000},\"variables\":{\"pplQuery\":\"source=`jaeger-span*`| where `duration` > 10000000\",\"pplFilters\":[]},\"indexInsight\":{\"is_log_index\":true,\"log_message_field\":null,\"trace_id_field\":\"traceID\"}},\"hypotheses\":\"\\n          ## Hypothesis 1\\n          ShippingService GetQuote API has performance bottleneck or timeout issue\\n          ## Hypothesis Description\\n          The shippingservice GetQuote operation is the root cause of checkout delays taking over 10 seconds. The 221.6 second delay suggests either a network timeout, external API dependency issue, database query problem, or resource starvation in the shipping service.\\n        \\n\\n          ## Hypothesis 2\\n          External dependency or network latency causing cascading delays\\n          ## Hypothesis Description\\n          Both high-latency operations (ShippingService and CurrencyService) may be calling external APIs or services that are experiencing delays. The shippingservice might be calling a third-party shipping rate API, and currencyservice might be calling an exchange rate service.\\n        \\n\\n          ## Hypothesis 3\\n          CurrencyService has intermittent performance degradation\\n          ## Hypothesis Description\\n          The currencyservice shows a 10-second delay in one Convert operation while another Convert operation later in the trace completed in 17ms. This suggests intermittent performance issues, possibly due to cold start, external exchange rate API calls, or caching problems.\\n        \\n\\n          ## Hypothesis 4\\n          Resource contention or connection pool exhaustion\\n          ## Hypothesis Description\\n          The sequential nature of delays (CurrencyService delay followed by much longer ShippingService delay) could indicate resource exhaustion, database connection pool depletion, or thread pool saturation affecting the checkout service's ability to make downstream calls efficiently.\\n        \",\"findings\":\"## Findings\\n\\n\\n## Step description\\nUser types somes note by using this step.\\n\\n## Step result:\\nImportance: 100\\n\\nDescription:\\nShippingService GetQuote operation has extremely high latency of 221.6 seconds (3.69 minutes)\\n\\nEvidence:\\nSpan b2d06eab62e9116d shows oteldemo.ShippingService/GetQuote operation taking 221,584,599 microseconds starting at 1763441605085. This is the dominant latency contributor accounting for over 95% of total trace time.\\n    \\n\\n## Step description\\nUser types somes note by using this step.\\n\\n## Step result:\\nImportance: 95\\n\\nDescription:\\nTotal checkout process took approximately 231.6 seconds (3.86 minutes)\\n\\nEvidence:\\nComplete trace spans from 1763441595200 to 1763441826783, encompassing cart retrieval, product lookup, currency conversion, shipping quote, payment processing, and order confirmation across 9 different microservices.\\n    \\n\\n## Step description\\nUser types somes note by using this step.\\n\\n## Step result:\\nImportance: 85\\n\\nDescription:\\nCurrencyService Convert operation shows significant delay of 10 seconds\\n\\nEvidence:\\nSpan d4d7dedf95e33c8e shows oteldemo.CurrencyService/Convert operation taking 10,013,583 microseconds starting at 1763441595206. This is the second highest latency in the trace.\\n    \\n\\n## Step description\\nUser types somes note by using this step.\\n\\n## Step result:\\nImportance: 80\\n\\nDescription:\\nMultiple services involved in checkout but only ShippingService and CurrencyService show high latency\\n\\nEvidence:\\nOther services (cartservice, productcatalogservice, paymentservice, emailservice, frauddetectionservice) all completed operations in under 10ms. Cart retrieval: 3.7ms, Product lookup: 1.4ms, Payment charge: 33.7ms, Email sending: 4.2ms.\\n    \\n\\n## Step description\\nUser types somes note by using this step.\\n\\n## Step result:\\nImportance: 60\\n\\nDescription:\\nLog entries show normal processing flow with no error messages\\n\\nEvidence:\\nAll 33 log entries from ss4o_logs-otel-2025.11.18 show INFO level messages with successful operations. Order 7e253bd0-c43a-11f0-a882-de57ba0c4987 was successfully placed for USD $656.55 with confirmation email sent to moore@example.com.\\n    \"}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Execute SearchIndexTool with expanded query parameters on the jaeger-span* index to find additional spans or traces related to the high-latency checkout issue.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 2,
+        "description": "Process the expanded search results and correlate with existing findings about ShippingService and CurrencyService latency.",
+        "requiredTools": []
+      },
+      {
+        "step": 3,
+        "description": "Present additional findings that support or refine the existing hypotheses about the checkout latency root cause.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-003",
+    "name": "Multiple Simultaneous Tool Calls",
+    "description": "Test case to verify agent handles multiple tool calls correctly without concatenating JSON arguments. The agent should make separate tool calls rather than merging arguments into a single malformed JSON string.",
+    "category": "Baseline",
+    "difficulty": "Hard",
+    "initialPrompt": "can you try all your tools",
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-15m\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"cwl*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Agent should identify the available tools and plan to demonstrate each one using the cwl* index pattern.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Execute ClusterHealthTool with valid JSON arguments to check cluster health.",
+        "requiredTools": ["ClusterHealthTool"]
+      },
+      {
+        "step": 3,
+        "description": "Execute additional tools (SearchIndexTool, Index_manager, etc.) with separate, properly-formatted tool calls - NOT concatenated JSON arguments.",
+        "requiredTools": ["SearchIndexTool", "Index_manager"]
+      },
+      {
+        "step": 4,
+        "description": "If execute_ppl_query frontend tool is available, demonstrate it with a valid PPL query against the cwl* index.",
+        "requiredTools": ["execute_ppl_query"]
+      },
+      {
+        "step": 5,
+        "description": "Summarize the results from all tool executions without JSON parsing errors.",
+        "requiredTools": []
+      }
+    ]
+  },
+  {
+    "id": "tc-004",
+    "name": "Search for Errors in Index",
+    "description": "Test case to verify agent correctly searches for errors across indices. Bug: Agent sends two separate argument objects for the SAME tool call ID (e.g., one for ss4o_logs-otel* and another for otel-v1-apm-span*), causing JSON parsing errors. The agent should either make separate tool calls with unique IDs or combine into a single valid query.",
+    "category": "Baseline",
+    "difficulty": "Medium",
+    "initialPrompt": "are there errors in my otel index",
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-15m\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"7d03f9f5-b9c4-38d3-b888-751575bb49df\",\"type\":\"OpenSearch\"},\"id\":\"37352d60-c8f5-11f0-b318-a7e9c7dbb705\",\"timeFieldName\":\"@timestamp\",\"title\":\"cwl*\",\"type\":\"INDEX_PATTERN\"}}"
+      }
+    ],
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Agent should plan to search for error-related documents in the otel* index using appropriate error filters.",
+        "requiredTools": []
+      },
+      {
+        "step": 2,
+        "description": "Execute SearchIndexTool with a single, properly-formatted JSON query that searches for errors (status:error, level:error, etc.) - NOT multiple concatenated queries.",
+        "requiredTools": ["SearchIndexTool"]
+      },
+      {
+        "step": 3,
+        "description": "Process and present the error findings from the search results.",
+        "requiredTools": []
+      }
+    ]
+  }
+]

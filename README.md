@@ -1,0 +1,148 @@
+# AgentEval
+
+An evaluation framework for Root Cause Analysis (RCA) agents. Uses "Golden Path" trajectory comparison where an LLM Judge evaluates agent actions against expected outcomes.
+
+## Features
+
+- **Evals**: Real-time agent evaluation with trajectory streaming
+- **Experiments**: Batch evaluation runs with configurable parameters
+- **Compare**: Side-by-side comparison of evaluation runs
+- **Traces**: Detailed trace visualization for debugging agent behavior
+- **Reports**: Evaluation reports with LLM judge reasoning
+
+---
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Terminal 1 - Backend server (port 4001)
+npm run dev:server
+
+# Terminal 2 - Frontend dev server (port 4000)
+npm run dev
+```
+
+Open http://localhost:4000
+
+---
+
+## Authentication (Required)
+
+AWS credentials are required for the Bedrock LLM Judge to score evaluations.
+
+Create a `.env` file:
+```bash
+cp .env.example .env
+```
+
+Add your AWS credentials:
+```bash
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_SESSION_TOKEN=your_session_token  # if using temporary credentials
+```
+
+---
+
+## Configuration (Optional)
+
+All optional settings have sensible defaults. Configure only what you need.
+
+### Agent Endpoints
+
+Agent endpoints default to localhost. Override if your agent runs elsewhere:
+
+```bash
+PULSAR_ENDPOINT=http://localhost:3000
+HOLMESGPT_ENDPOINT=http://localhost:5050/api/agui/chat
+MLCOMMONS_ENDPOINT=http://localhost:9200/_plugins/_ml/agents/{agent_id}/_execute/stream
+```
+
+### Storage (Persistence)
+
+For persisting test cases, experiments, and runs. Features gracefully degrade if not configured.
+
+```bash
+OPENSEARCH_STORAGE_ENDPOINT=https://your-cluster.opensearch.amazonaws.com
+OPENSEARCH_STORAGE_USERNAME=admin
+OPENSEARCH_STORAGE_PASSWORD=your_password
+```
+
+### Traces (Observability)
+
+For agent execution traces. Features gracefully degrade if not configured.
+
+```bash
+OPENSEARCH_LOGS_ENDPOINT=https://your-logs-cluster.opensearch.amazonaws.com
+OPENSEARCH_LOGS_USERNAME=admin
+OPENSEARCH_LOGS_PASSWORD=your_password
+```
+
+See `.env.example` for all available options.
+
+---
+
+## Development Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm install` | Install dependencies |
+| `npm run dev` | Start frontend dev server (port 4000) |
+| `npm run dev:server` | Start backend server (port 4001) |
+| `npm run build` | TypeScript compile + Vite production build |
+| `npm run test` | Run Jest test suite |
+
+### Production Mode
+
+```bash
+npm run server  # Build UI + start single server on port 4001
+```
+
+Open http://localhost:4001
+
+---
+
+## Agent Setup
+
+AgentEval supports multiple agent types:
+
+| Agent | Endpoint Variable | Setup |
+|-------|-------------------|-------|
+| Pulsar | `PULSAR_ENDPOINT` | Simple localhost agent |
+| HolmesGPT | `HOLMESGPT_ENDPOINT` | AG-UI compatible RCA agent |
+| ML-Commons | `MLCOMMONS_ENDPOINT` | See [ML-Commons Setup](./docs/ML-COMMONS-SETUP.md) |
+
+---
+
+## Architecture
+
+```
+Browser (React UI)
+       |
+       v
+Backend Server (4001) --> Bedrock LLM Judge
+       |
+       v
+Agent Endpoint --> Tools --> OpenSearch Data
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Cannot connect to backend | Run `npm run dev:server`, check `curl http://localhost:4001/health` |
+| AWS credentials expired | Refresh credentials in `.env` |
+| Storage/Traces not working | Check OpenSearch endpoint and credentials in `.env` |
+
+---
+
+## Documentation
+
+- [ML-Commons Agent Setup](./docs/ML-COMMONS-SETUP.md)
+- [AG-UI Protocol](https://docs.ag-ui.com/sdk/js/core/types#runagentinput)

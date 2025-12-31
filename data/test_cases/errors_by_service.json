@@ -1,0 +1,108 @@
+[
+  {
+    "id": "tc-ebs-001",
+    "name": "Errors by Service - With Service Name Field Documentation",
+    "description": "Test if agent can generate correct PPL aggregation query when service name field mapping is provided in context.",
+    "category": "Errors by Service",
+    "subcategory": "With Context",
+    "difficulty": "Medium",
+    "initialPrompt": "Show me error counts by service",
+    "tools": [
+      {
+        "name": "execute_ppl_query",
+        "description": "Update the query bar with a PPL query and optionally execute it",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The PPL query to set in the query bar"
+            },
+            "autoExecute": {
+              "type": "boolean",
+              "description": "Whether to automatically execute the query (default: true)"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of what the query does"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    ],
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"otel-playground\",\"type\":\"OpenSearch\"},\"id\":\"logs-otel-v1\",\"timeFieldName\":\"time\",\"title\":\"logs-otel-v1*\",\"type\":\"INDEX_PATTERN\"}}"
+      },
+      {
+        "description": "Index field mappings",
+        "value": "{\"body\":\"text field containing log messages\",\"severityText\":\"keyword - INFO/ERROR/WARN/Error\",\"time\":\"timestamp field\",\"resource.attributes.service.name\":\"service name field - use backticks in PPL for dotted field names\"}"
+      },
+      {
+        "description": "PPL Aggregation Documentation",
+        "value": "To aggregate data in PPL:\\n\\n1. Use stats command: stats <aggregation> by <field>\\n2. For dotted field names, wrap in backticks: `resource.attributes.service.name`\\n3. Common aggregations: count(), sum(), avg(), max(), min()\\n4. Alias results: count() as errorCount\\n5. Sort results: sort - fieldName (descending) or sort + fieldName (ascending)\\n\\nExample: source = logs-otel-v1* | where severityText = 'ERROR' | stats count() as errorCount by `resource.attributes.service.name` | sort - errorCount"
+      }
+    ],
+    "expectedPPL": "source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | stats count() as errorCount by `resource.attributes.service.name` | sort - errorCount",
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Generate PPL query to count errors by service: source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | stats count() as errorCount by `resource.attributes.service.name` | sort - errorCount",
+        "requiredTools": ["execute_ppl_query"]
+      }
+    ]
+  },
+  {
+    "id": "tc-ebs-002",
+    "name": "Errors by Service - Without Field Documentation",
+    "description": "Test if agent can generate correct PPL aggregation query WITHOUT field documentation - relying on model's built-in knowledge of OTel conventions.",
+    "category": "Errors by Service",
+    "subcategory": "Without Context",
+    "difficulty": "Hard",
+    "initialPrompt": "Show me error counts by service",
+    "tools": [
+      {
+        "name": "execute_ppl_query",
+        "description": "Update the query bar with a PPL query and optionally execute it",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The PPL query to set in the query bar"
+            },
+            "autoExecute": {
+              "type": "boolean",
+              "description": "Whether to automatically execute the query (default: true)"
+            },
+            "description": {
+              "type": "string",
+              "description": "Optional description of what the query does"
+            }
+          },
+          "required": ["query"]
+        }
+      }
+    ],
+    "context": [
+      {
+        "description": "Explore application page context",
+        "value": "{\"appId\":\"explore\",\"timeRange\":{\"from\":\"now-24h\",\"to\":\"now\"},\"query\":{\"query\":\"\",\"language\":\"PPL\"},\"dataset\":{\"dataSource\":{\"id\":\"otel-playground\",\"type\":\"OpenSearch\"},\"id\":\"logs-otel-v1\",\"timeFieldName\":\"time\",\"title\":\"logs-otel-v1*\",\"type\":\"INDEX_PATTERN\"}}"
+      },
+      {
+        "description": "Index field mappings",
+        "value": "{\"body\":\"text field containing log messages\",\"severityText\":\"keyword - INFO/ERROR/WARN/Error\",\"time\":\"timestamp field\"}"
+      }
+    ],
+    "expectedPPL": "source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | stats count() as errorCount by `resource.attributes.service.name` | sort - errorCount",
+    "expectedTrajectory": [
+      {
+        "step": 1,
+        "description": "Generate PPL query to count errors by service: source = logs-otel-v1* | where severityText = 'ERROR' OR severityText = 'Error' | stats count() as errorCount by `resource.attributes.service.name` | sort - errorCount",
+        "requiredTools": ["execute_ppl_query"]
+      }
+    ]
+  }
+]
