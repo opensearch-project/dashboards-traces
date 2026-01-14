@@ -1,49 +1,63 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * OpenSearch Client Service
  * Provides a singleton client for OpenSearch storage operations using the official SDK.
+ *
+ * Storage is optional - when not configured, APIs return sample data only.
  */
 
 import { Client } from '@opensearch-project/opensearch';
 
 let client: Client | null = null;
+let clientInitialized = false;
 
 export interface StorageConfig {
   endpoint: string;
-  username: string;
-  password: string;
-}
-
-/**
- * Get or create the OpenSearch client singleton
- */
-export function getOpenSearchClient(): Client {
-  if (!client) {
-    const endpoint = process.env.OPENSEARCH_STORAGE_ENDPOINT;
-    const username = process.env.OPENSEARCH_STORAGE_USERNAME;
-    const password = process.env.OPENSEARCH_STORAGE_PASSWORD;
-
-    if (!endpoint || !username || !password) {
-      throw new Error('OpenSearch storage not configured. Set OPENSEARCH_STORAGE_* environment variables.');
-    }
-
-    client = new Client({
-      node: endpoint,
-      auth: { username, password },
-      ssl: { rejectUnauthorized: false },
-    });
-  }
-  return client;
+  username?: string;
+  password?: string;
 }
 
 /**
  * Check if storage is configured
  */
 export function isStorageConfigured(): boolean {
-  return !!(
-    process.env.OPENSEARCH_STORAGE_ENDPOINT &&
-    process.env.OPENSEARCH_STORAGE_USERNAME &&
-    process.env.OPENSEARCH_STORAGE_PASSWORD
-  );
+  return !!process.env.OPENSEARCH_STORAGE_ENDPOINT;
+}
+
+/**
+ * Get or create the OpenSearch client singleton.
+ * Returns null if storage is not configured.
+ */
+export function getOpenSearchClient(): Client | null {
+  if (!clientInitialized) {
+    clientInitialized = true;
+
+    const endpoint = process.env.OPENSEARCH_STORAGE_ENDPOINT;
+    if (!endpoint) {
+      // Storage not configured - sample data only mode
+      return null;
+    }
+
+    const username = process.env.OPENSEARCH_STORAGE_USERNAME;
+    const password = process.env.OPENSEARCH_STORAGE_PASSWORD;
+
+    const config: any = {
+      node: endpoint,
+      ssl: { rejectUnauthorized: false },
+    };
+
+    // Add auth only if credentials provided
+    if (username && password) {
+      config.auth = { username, password };
+    }
+
+    client = new Client(config);
+  }
+  return client;
 }
 
 /**

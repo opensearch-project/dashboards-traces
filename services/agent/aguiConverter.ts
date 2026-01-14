@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * AG UI Event to TrajectoryStep Converter
  * Converts streaming AG UI events from the agent into TrajectoryStep format

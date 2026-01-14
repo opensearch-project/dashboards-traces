@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Mock Trajectory Generator
  * Generates simulated agent trajectories for testing without a real agent

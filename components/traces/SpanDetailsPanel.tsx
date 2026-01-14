@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * SpanDetailsPanel
  *
@@ -5,15 +10,17 @@
  * and LLM request/response data with formatted message display.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Layers, ChevronRight, ChevronDown, Info, MessageSquare, Bot, PieChart } from 'lucide-react';
-import { Span } from '@/types';
+import { X, Layers, ChevronRight, ChevronDown, Info, MessageSquare, Bot, PieChart, AlertTriangle } from 'lucide-react';
+import { Span, CategorizedSpan } from '@/types';
 import { formatDuration, getKeyAttributes } from '@/services/traces/utils';
+import { checkOTelCompliance } from '@/services/traces/spanCategorization';
 import ContextWindowBar from './ContextWindowBar';
 import FormattedMessages from './FormattedMessages';
+import { ATTR_GEN_AI_USAGE_INPUT_TOKENS } from '@opentelemetry/semantic-conventions/incubating';
 
 interface SpanDetailsPanelProps {
   span: Span;
@@ -23,6 +30,7 @@ interface SpanDetailsPanelProps {
 const SpanDetailsPanel: React.FC<SpanDetailsPanelProps> = ({ span, onClose }) => {
   const [expandedSections, setExpandedSections] = useState({
     keyInfo: true,
+    otelCompliance: true,
     contextWindow: true,
     modelInput: false,
     modelOutput: false,
@@ -33,6 +41,15 @@ const SpanDetailsPanel: React.FC<SpanDetailsPanelProps> = ({ span, onClose }) =>
 
   // Extract key attributes based on span type
   const keyAttrs = getKeyAttributes(span);
+
+  // Check OTel compliance for categorized spans
+  const otelCompliance = useMemo(() => {
+    const categorizedSpan = span as CategorizedSpan;
+    if (categorizedSpan.category) {
+      return checkOTelCompliance(categorizedSpan);
+    }
+    return null;
+  }, [span]);
 
   // Extract LLM events for prominent display
   const llmRequestEvent = span.events?.find(e => e.name === 'llm.request');
@@ -88,6 +105,50 @@ const SpanDetailsPanel: React.FC<SpanDetailsPanelProps> = ({ span, onClose }) =>
             )}
           </div>
 
+          {/* OTEL COMPLIANCE SECTION - show warnings for missing attributes */}
+          {otelCompliance && !otelCompliance.isCompliant && (
+            <div className="space-y-2">
+              <button
+                className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-500 hover:text-amber-400 w-full"
+                onClick={() => toggleSection('otelCompliance')}
+              >
+                {expandedSections.otelCompliance ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                <AlertTriangle size={10} /> OTel Compliance
+                <Badge variant="outline" className="ml-auto text-[9px] h-4 px-1 text-amber-400 border-amber-500/50">
+                  {otelCompliance.missingAttributes.length} missing
+                </Badge>
+              </button>
+              {expandedSections.otelCompliance && (
+                <div className="bg-amber-950/30 rounded-md p-3 space-y-2">
+                  <div className="text-[10px] text-amber-400/80">
+                    Missing required OTel GenAI attributes:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {otelCompliance.missingAttributes.map((attr) => (
+                      <Badge
+                        key={attr}
+                        variant="outline"
+                        className="text-[9px] font-mono text-amber-400 border-amber-500/50 bg-amber-500/10"
+                      >
+                        {attr}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground mt-2">
+                    <a
+                      href="https://opentelemetry.io/docs/specs/semconv/gen-ai/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:underline"
+                    >
+                      View OTel GenAI Semantic Conventions →
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Timing section */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -120,7 +181,7 @@ const SpanDetailsPanel: React.FC<SpanDetailsPanelProps> = ({ span, onClose }) =>
                   systemPrompt={llmRequestEvent.attributes?.['llm.system_prompt'] || ''}
                   messages={llmRequestEvent.attributes?.['llm.prompt'] || ''}
                   toolCount={llmRequestEvent.attributes?.['bedrock.tool_count'] || 0}
-                  actualInputTokens={span.attributes?.['gen_ai.usage.input_tokens']}
+                  actualInputTokens={span.attributes?.[ATTR_GEN_AI_USAGE_INPUT_TOKENS]}
                 />
               )}
             </div>

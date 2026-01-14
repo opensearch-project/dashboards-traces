@@ -6,9 +6,12 @@ An evaluation framework for Root Cause Analysis (RCA) agents. Uses "Golden Path"
 
 - **Evals**: Real-time agent evaluation with trajectory streaming
 - **Experiments**: Batch evaluation runs with configurable parameters
-- **Compare**: Side-by-side comparison of evaluation runs
-- **Traces**: Detailed trace visualization for debugging agent behavior
+- **Compare**: Side-by-side trace comparison with aligned and merged views
+- **Live Traces**: Real-time trace monitoring with auto-refresh and filtering
+- **Trace Views**: Timeline and Flow visualizations for debugging
 - **Reports**: Evaluation reports with LLM judge reasoning
+
+For a detailed walkthrough, see [Getting Started](./GETTING_STARTED.md).
 
 ---
 
@@ -18,6 +21,10 @@ An evaluation framework for Root Cause Analysis (RCA) agents. Uses "Golden Path"
 # Install dependencies
 npm install
 
+# Option 1: Production mode (single server)
+npm run server   # Builds frontend + starts server on port 4001
+
+# Option 2: Development mode (two terminals)
 # Terminal 1 - Backend server (port 4001)
 npm run dev:server
 
@@ -57,7 +64,7 @@ All optional settings have sensible defaults. Configure only what you need.
 Agent endpoints default to localhost. Override if your agent runs elsewhere:
 
 ```bash
-PULSAR_ENDPOINT=http://localhost:3000
+LANGGRAPH_ENDPOINT=http://localhost:3000
 HOLMESGPT_ENDPOINT=http://localhost:5050/api/agui/chat
 MLCOMMONS_ENDPOINT=http://localhost:9200/_plugins/_ml/agents/{agent_id}/_execute/stream
 ```
@@ -112,7 +119,7 @@ AgentEval supports multiple agent types:
 
 | Agent | Endpoint Variable | Setup |
 |-------|-------------------|-------|
-| Pulsar | `PULSAR_ENDPOINT` | Simple localhost agent |
+| Langgraph | `LANGGRAPH_ENDPOINT` | Simple localhost agent |
 | HolmesGPT | `HOLMESGPT_ENDPOINT` | AG-UI compatible RCA agent |
 | ML-Commons | `MLCOMMONS_ENDPOINT` | See [ML-Commons Setup](./docs/ML-COMMONS-SETUP.md) |
 
@@ -144,5 +151,7 @@ Agent Endpoint --> Tools --> OpenSearch Data
 
 ## Documentation
 
-- [ML-Commons Agent Setup](./docs/ML-COMMONS-SETUP.md)
+- [Getting Started](./GETTING_STARTED.md) - Installation, demo mode, and usage walkthrough
+- [ML-Commons Agent Setup](./docs/ML-COMMONS-SETUP.md) - Configure ML-Commons agent
+- [Development Guide](./CLAUDE.md) - Architecture and coding conventions
 - [AG-UI Protocol](https://docs.ag-ui.com/sdk/js/core/types#runagentinput)

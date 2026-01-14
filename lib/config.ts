@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Environment Configuration
  *
@@ -41,7 +46,7 @@ export interface EnvConfig {
   openSearchLogsIndex: string;
 
   // Per-agent endpoints
-  pulsarEndpoint: string;
+  langgraphEndpoint: string;
   mlcommonsEndpoint: string;
   holmesGptEndpoint: string;
 
@@ -55,15 +60,28 @@ export interface EnvConfig {
   mlcommonsHeaderAwsSessionToken: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let browserEnv: Record<string, string> = {};
+
+// Only access import.meta in browser context (Vite bundles this)
+// In Node.js/Jest, this block is skipped and browserEnv stays empty
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    browserEnv = (import.meta as any)?.env || {};
+  } catch {
+    // Ignore - we're in a test environment
+  }
+}
+
 const getEnvVar = (key: string, defaultValue?: string): string => {
   // Server: use process.env (Node.js native)
   // Client: use import.meta.env (Vite replaces at build time, see vite.config.ts)
   if (isServerSide) {
     return process.env?.[key] || defaultValue || '';
   }
-  // Browser: access import.meta.env
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (import.meta as any).env?.[key] || defaultValue || '';
+  // Browser: use pre-loaded env
+  return browserEnv[key] || defaultValue || '';
 };
 
 export const ENV_CONFIG: EnvConfig = {
@@ -89,7 +107,7 @@ export const ENV_CONFIG: EnvConfig = {
   openSearchLogsIndex: getEnvVar('OPENSEARCH_LOGS_INDEX', 'ml-commons-logs-*'),
 
   // Per-agent endpoints
-  pulsarEndpoint: getEnvVar('PULSAR_ENDPOINT', 'http://localhost:3000'),
+  langgraphEndpoint: getEnvVar('LANGGRAPH_ENDPOINT', 'http://localhost:3000'),
   mlcommonsEndpoint: getEnvVar('MLCOMMONS_ENDPOINT', 'http://localhost:9200/_plugins/_ml/agents/{agent_id}/_execute/stream'),
   holmesGptEndpoint: getEnvVar('HOLMESGPT_ENDPOINT', 'http://localhost:5050/api/agui/chat'),
 

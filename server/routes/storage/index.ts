@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Storage Routes - Combines all entity routes
  * Uses OpenSearch JS SDK for all operations

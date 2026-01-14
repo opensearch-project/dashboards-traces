@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
@@ -22,6 +27,7 @@ import {
   Pencil,
   Target,
   Hash,
+  Maximize2,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,8 +35,9 @@ import { EvaluationReport, RunAnnotation, TestCase, Span, TimeRange, TraceMetric
 import { fetchRunMetrics, formatCost, formatDuration, formatTokens } from '@/services/metrics';
 import { TrajectoryView } from './TrajectoryView';
 import { RawEventsPanel } from './RawEventsPanel';
-import TraceTimelineChart from './traces/TraceTimelineChart';
-import SpanDetailsPanel from './traces/SpanDetailsPanel';
+import TraceVisualization from './traces/TraceVisualization';
+import ViewToggle, { ViewMode } from './traces/ViewToggle';
+import TraceFullScreenView from './traces/TraceFullScreenView';
 import { computeTrajectoryFromRawEvents } from '@/services/agent';
 import { fetchTracesByRunIds, processSpansIntoTree, calculateTimeRange } from '@/services/traces';
 import { DEFAULT_CONFIG } from '@/lib/constants';
@@ -78,6 +85,8 @@ export const RunDetailsContent: React.FC<RunDetailsContentProps> = ({
   const [tracesError, setTracesError] = useState<string | null>(null);
   const [tracesFetched, setTracesFetched] = useState(false);
   const [activeTab, setActiveTab] = useState('summary');
+  const [traceViewMode, setTraceViewMode] = useState<ViewMode>('timeline');
+  const [traceFullscreenOpen, setTraceFullscreenOpen] = useState(false);
 
   // Live report state for auto-refresh when judge completes
   // This allows the UI to update without a page refresh when metricsStatus changes
@@ -232,8 +241,9 @@ export const RunDetailsContent: React.FC<RunDetailsContentProps> = ({
   const modelDisplayName = DEFAULT_CONFIG.models[report.modelName]?.display_name || report.modelName;
 
   // Check if this agent uses trace mode
+  // Default to true since all configured agents use traces
   const agentConfig = DEFAULT_CONFIG.agents.find(a => a.key === report.agentKey || a.name === report.agentName);
-  const isTraceMode = agentConfig?.useTraces ?? false;
+  const isTraceMode = agentConfig?.useTraces ?? true;
 
   // Load test case and annotations on mount
   useEffect(() => {
@@ -801,7 +811,23 @@ export const RunDetailsContent: React.FC<RunDetailsContentProps> = ({
             {isTraceMode ? (
               /* TRACE MODE: Show trace visualization */
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Traces</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Traces</h3>
+                  {spanTree.length > 0 && !tracesLoading && (
+                    <div className="flex items-center gap-2">
+                      <ViewToggle viewMode={traceViewMode} onChange={setTraceViewMode} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setTraceFullscreenOpen(true)}
+                        className="gap-1.5"
+                      >
+                        <Maximize2 size={14} />
+                        Fullscreen
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Loading state */}
                 {tracesLoading && (
@@ -860,28 +886,23 @@ export const RunDetailsContent: React.FC<RunDetailsContentProps> = ({
                             Run ID: {report.runId}
                           </span>
                         </div>
-                        <TraceTimelineChart
-                          spanTree={spanTree}
-                          timeRange={timeRange}
-                          selectedSpan={selectedSpan}
-                          onSelect={setSelectedSpan}
-                          expandedSpans={expandedSpans}
-                          onToggleExpand={handleToggleExpand}
-                        />
+
+                        <div className="h-[700px]">
+                          <TraceVisualization
+                            spanTree={spanTree}
+                            timeRange={timeRange}
+                            initialViewMode={traceViewMode}
+                            onViewModeChange={setTraceViewMode}
+                            showViewToggle={false}
+                            selectedSpan={selectedSpan}
+                            onSelectSpan={setSelectedSpan}
+                            expandedSpans={expandedSpans}
+                            onToggleExpand={handleToggleExpand}
+                            showSpanDetailsPanel={true}
+                          />
+                        </div>
                       </CardContent>
                     </Card>
-
-                    {/* Span details panel */}
-                    {selectedSpan && (
-                      <Card>
-                        <CardContent className="p-0">
-                          <SpanDetailsPanel
-                            span={selectedSpan}
-                            onClose={() => setSelectedSpan(null)}
-                          />
-                        </CardContent>
-                      </Card>
-                    )}
                   </div>
                 )}
 
@@ -899,6 +920,21 @@ export const RunDetailsContent: React.FC<RunDetailsContentProps> = ({
                     </Button>
                   </div>
                 )}
+
+                {/* Fullscreen Trace View */}
+                <TraceFullScreenView
+                  open={traceFullscreenOpen}
+                  onOpenChange={setTraceFullscreenOpen}
+                  title={`Traces: ${testCase?.name || 'Unknown Test Case'}`}
+                  subtitle={`Run ID: ${report.runId}`}
+                  spanTree={spanTree}
+                  timeRange={timeRange}
+                  selectedSpan={selectedSpan}
+                  onSelectSpan={setSelectedSpan}
+                  initialViewMode={traceViewMode}
+                  onViewModeChange={setTraceViewMode}
+                  spanCount={traceSpans.length}
+                />
               </div>
             ) : (
               /* STANDARD MODE: Show OpenSearch logs */

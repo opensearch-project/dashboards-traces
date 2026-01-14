@@ -1,10 +1,16 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/services', '<rootDir>/server', '<rootDir>/tests'],
+  roots: ['<rootDir>/services', '<rootDir>/server', '<rootDir>/tests', '<rootDir>/cli', '<rootDir>/lib'],
   testMatch: ['**/__tests__/**/*.test.ts', '**/*.test.ts', '**/tests/**/*.ts'],
   moduleNameMapper: {
+    '^@/lib/config$': '<rootDir>/__mocks__/@/lib/config.ts',
     '^@/(.*)$': '<rootDir>/$1',
   },
   transform: {

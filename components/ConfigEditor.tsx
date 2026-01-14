@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { DEFAULT_CONFIG } from '@/lib/constants';

@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
 import { AGUIEvent, AGUIEventType } from '@/types/agui';

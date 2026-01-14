@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['class', 'class'],

@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { Experiment, ExperimentRun } from '@/types';
 
 // Storage key - only experiments now (runs embedded within)

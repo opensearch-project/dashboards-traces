@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Beaker, FlaskConical, CheckCircle2, AlertTriangle, ChevronRight, Rocket, Clock, TrendingUp, TrendingDown, Minus, CircleDot, DollarSign, Activity } from 'lucide-react';

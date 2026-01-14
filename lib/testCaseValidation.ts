@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { z } from 'zod';
 import type { AgentContextItem } from '@/types';
 import type { CreateTestCaseInput } from '@/services/storage';

@@ -1,10 +1,19 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Test Cases Routes - Versioned CRUD operations
+ *
+ * Sample data (demo-*) is always included in responses.
+ * Real data from OpenSearch is merged when configured.
  */
 
 import { Router, Request, Response } from 'express';
-import { getOpenSearchClient, INDEXES } from '../../services/opensearchClient';
-import { getAllTestCases, getTestCaseById } from '../../services/storage';
+import { getOpenSearchClient, isStorageConfigured, INDEXES } from '../../services/opensearchClient.js';
+import { SAMPLE_TEST_CASES } from '../../../cli/demo/sampleTestCases.js';
+import type { TestCase } from '../../../types/index.js';
 
 const router = Router();
 const INDEX = INDEXES.testCases;
@@ -13,11 +22,101 @@ function generateId(): string {
   return `tc-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
+/**
+ * Check if an ID belongs to sample data (read-only)
+ */
+function isSampleId(id: string): boolean {
+  return id.startsWith('demo-');
+}
+
+/**
+ * Convert sample test case format to full TestCase format
+ */
+function toTestCase(sample: typeof SAMPLE_TEST_CASES[0]): TestCase {
+  const now = new Date().toISOString();
+  return {
+    id: sample.id,
+    name: sample.name,
+    description: sample.description || '',
+    labels: sample.labels,
+    category: 'RCA',
+    difficulty: sample.labels.find(l => l.startsWith('difficulty:'))?.split(':')[1] as any || 'Medium',
+    currentVersion: 1,
+    versions: [{
+      version: 1,
+      createdAt: now,
+      initialPrompt: sample.initialPrompt,
+      context: sample.context.map(c => ({ description: c.type, value: JSON.stringify(c.content) })),
+      expectedOutcomes: sample.expectedOutcomes,
+    }],
+    isPromoted: sample.tags?.includes('promoted') || false,
+    createdAt: now,
+    updatedAt: now,
+    initialPrompt: sample.initialPrompt,
+    context: sample.context.map(c => ({ description: c.type, value: JSON.stringify(c.content) })),
+    expectedOutcomes: sample.expectedOutcomes,
+  };
+}
+
+/**
+ * Get sample test cases as full TestCase objects
+ */
+function getSampleTestCases(): TestCase[] {
+  return SAMPLE_TEST_CASES.map(toTestCase);
+}
+
 // GET /api/storage/test-cases - List all (latest versions)
 router.get('/api/storage/test-cases', async (_req: Request, res: Response) => {
   try {
-    const testCases = await getAllTestCases();
-    res.json({ testCases, total: testCases.length });
+    let realData: TestCase[] = [];
+
+    // Fetch from OpenSearch if configured
+    if (isStorageConfigured()) {
+      try {
+        const client = getOpenSearchClient()!;
+
+        // Get latest version of each test case using aggregation
+        const result = await client.search({
+          index: INDEX,
+          body: {
+            size: 0,
+            aggs: {
+              by_id: {
+                terms: { field: 'id', size: 10000 },
+                aggs: {
+                  latest: {
+                    top_hits: {
+                      size: 1,
+                      sort: [{ version: { order: 'desc' } }],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        const buckets = (result.body.aggregations?.by_id as any)?.buckets || [];
+        realData = buckets.map((b: any) => b.latest.hits.hits[0]._source);
+      } catch (e: any) {
+        console.warn('[StorageAPI] OpenSearch unavailable, returning sample data only:', e.message);
+      }
+    }
+
+    // Sort real data by createdAt descending (newest first)
+    const sortedRealData = realData.sort((a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    // Sort sample data by createdAt descending
+    const sampleData = getSampleTestCases().sort((a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    // User data first, then sample data
+    const allData = [...sortedRealData, ...sampleData];
+
+    res.json({ testCases: allData, total: allData.length });
   } catch (error: any) {
     console.error('[StorageAPI] List test cases failed:', error.message);
     res.status(500).json({ error: error.message });
@@ -27,7 +126,33 @@ router.get('/api/storage/test-cases', async (_req: Request, res: Response) => {
 // GET /api/storage/test-cases/:id - Get latest version
 router.get('/api/storage/test-cases/:id', async (req: Request, res: Response) => {
   try {
-    const testCase = await getTestCaseById(req.params.id);
+    const { id } = req.params;
+
+    // Check sample data first
+    if (isSampleId(id)) {
+      const sample = SAMPLE_TEST_CASES.find(tc => tc.id === id);
+      if (sample) {
+        return res.json(toTestCase(sample));
+      }
+      return res.status(404).json({ error: 'Test case not found' });
+    }
+
+    // Fetch from OpenSearch
+    if (!isStorageConfigured()) {
+      return res.status(404).json({ error: 'Test case not found' });
+    }
+
+    const client = getOpenSearchClient()!;
+    const result = await client.search({
+      index: INDEX,
+      body: {
+        size: 1,
+        sort: [{ version: { order: 'desc' } }],
+        query: { term: { id } },
+      },
+    });
+
+    const testCase = result.body.hits?.hits?.[0]?._source;
     if (!testCase) {
       return res.status(404).json({ error: 'Test case not found' });
     }
@@ -41,13 +166,29 @@ router.get('/api/storage/test-cases/:id', async (req: Request, res: Response) =>
 // GET /api/storage/test-cases/:id/versions - Get all versions
 router.get('/api/storage/test-cases/:id/versions', async (req: Request, res: Response) => {
   try {
-    const client = getOpenSearchClient();
+    const { id } = req.params;
+
+    // Sample data has only one version
+    if (isSampleId(id)) {
+      const sample = SAMPLE_TEST_CASES.find(tc => tc.id === id);
+      if (sample) {
+        const testCase = toTestCase(sample);
+        return res.json({ versions: [testCase], total: 1 });
+      }
+      return res.status(404).json({ error: 'Test case not found' });
+    }
+
+    if (!isStorageConfigured()) {
+      return res.status(404).json({ error: 'Test case not found' });
+    }
+
+    const client = getOpenSearchClient()!;
     const result = await client.search({
       index: INDEX,
       body: {
         size: 1000,
         sort: [{ version: { order: 'desc' } }],
-        query: { term: { id: req.params.id } },
+        query: { term: { id } },
       },
     });
 
@@ -63,7 +204,23 @@ router.get('/api/storage/test-cases/:id/versions', async (req: Request, res: Res
 router.get('/api/storage/test-cases/:id/versions/:version', async (req: Request, res: Response) => {
   try {
     const { id, version } = req.params;
-    const client = getOpenSearchClient();
+
+    // Sample data has only version 1
+    if (isSampleId(id)) {
+      if (version === '1') {
+        const sample = SAMPLE_TEST_CASES.find(tc => tc.id === id);
+        if (sample) {
+          return res.json(toTestCase(sample));
+        }
+      }
+      return res.status(404).json({ error: 'Test case version not found' });
+    }
+
+    if (!isStorageConfigured()) {
+      return res.status(404).json({ error: 'Test case version not found' });
+    }
+
+    const client = getOpenSearchClient()!;
     const result = await client.search({
       index: INDEX,
       body: {
@@ -90,8 +247,19 @@ router.get('/api/storage/test-cases/:id/versions/:version', async (req: Request,
 // POST /api/storage/test-cases - Create new (version 1)
 router.post('/api/storage/test-cases', async (req: Request, res: Response) => {
   try {
-    const client = getOpenSearchClient();
     const testCase = { ...req.body };
+
+    // Reject creating with demo- prefix
+    if (testCase.id && isSampleId(testCase.id)) {
+      return res.status(400).json({ error: 'Cannot create test case with demo- prefix (reserved for sample data)' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot create new test cases in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
 
     if (!testCase.id) testCase.id = generateId();
     testCase.version = 1;
@@ -113,7 +281,18 @@ router.post('/api/storage/test-cases', async (req: Request, res: Response) => {
 router.put('/api/storage/test-cases/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const client = getOpenSearchClient();
+
+    // Reject modifying sample data
+    if (isSampleId(id)) {
+      return res.status(400).json({ error: 'Cannot modify sample data. Sample test cases are read-only.' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot update test cases in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
 
     // Get current latest version
     const searchResult = await client.search({
@@ -150,7 +329,18 @@ router.put('/api/storage/test-cases/:id', async (req: Request, res: Response) =>
 router.delete('/api/storage/test-cases/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const client = getOpenSearchClient();
+
+    // Reject deleting sample data
+    if (isSampleId(id)) {
+      return res.status(400).json({ error: 'Cannot delete sample data. Sample test cases are read-only.' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot delete test cases in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
 
     const result = await client.deleteByQuery({
       index: INDEX,
@@ -175,7 +365,18 @@ router.post('/api/storage/test-cases/bulk', async (req: Request, res: Response) 
       return res.status(400).json({ error: 'testCases must be an array' });
     }
 
-    const client = getOpenSearchClient();
+    // Check for demo- prefixes
+    const hasDemoIds = testCases.some(tc => tc.id && isSampleId(tc.id));
+    if (hasDemoIds) {
+      return res.status(400).json({ error: 'Cannot create test cases with demo- prefix (reserved for sample data)' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot create test cases in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
     const now = new Date().toISOString();
     const operations: any[] = [];
 

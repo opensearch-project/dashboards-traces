@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { EvaluationReport, TestCaseRun, RunAnnotation } from '@/types';
 
 // Storage keys (migrated from 'eval_reports_by_testcase' to 'test_case_runs')

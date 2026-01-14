@@ -1,6 +1,7 @@
 /node_modules
 /dist
 server/dist
+cli/dist
 build
 
 # Environment variables
@@ -16,4 +17,5 @@ judge.log
 .DS_Store
 
 # Backup files
-*.backup*
+*.backup*coverage/
+/coverage/

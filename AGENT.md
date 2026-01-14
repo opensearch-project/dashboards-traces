@@ -29,7 +29,6 @@ Copy `.env.example` to `.env`. Key variables:
 
 - `VITE_BACKEND_PORT` - Backend port (default: 3002)
 - `MLCOMMONS_ENDPOINT` - ML-Commons agent streaming endpoint
-- `PULSAR_ENDPOINT` - Pulsar agent endpoint
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` - Bedrock credentials
 - `OPENSEARCH_LOGS_*` - OpenSearch cluster for logs/traces
 
@@ -57,7 +56,7 @@ User selects agent + test case
 | `agent/`      | AG-UI protocol handling: SSE streaming (`sseStream.ts`), event conversion (`aguiConverter.ts`), payload building (`payloadBuilder.ts`) |
 | `evaluation/` | Orchestrates evaluation runs (`index.ts`), Bedrock judge client with retry (`bedrockJudge.ts`)                                         |
 | `storage/`    | Async storage with OpenSearch backend (`asyncRunStorage.ts`, `asyncTestCaseStorage.ts`, `asyncExperimentStorage.ts`)                   |
-| `traces/`     | Trace polling for agents with `useTraces: true`                                                                                        |
+| `traces/`     | Trace transformations: Flow view, Timeline view, comparison alignment, tool similarity grouping                                        |
 | `opensearch/` | Log fetching from OpenSearch clusters                                                                                                  |
 
 ### Key Types (`types/index.ts`)
@@ -99,10 +98,10 @@ Environment variables are exposed via `vite.config.ts` using `loadEnv()`. Access
 - Requires MCP Server running on port 3030
 - Headers configured via `MLCOMMONS_HEADER_*` env vars
 
-### Pulsar Agent
+### Langgraph Agent
 
 - Simpler local agent without ML-Commons dependencies
-- Endpoint configured via `PULSAR_ENDPOINT`
+- Endpoint configured via `LANGGRAPH_ENDPOINT`
 
 ## Testing
 
@@ -120,3 +119,18 @@ npm test -- --testNamePattern="pattern"     # By name
 - TailwindCSS for styling with dark theme
 - React Router with HashRouter for navigation
 - Recharts and ECharts for visualizations
+- React Flow for DAG-based trace visualization
+
+### Trace Visualization Views
+
+| View | Component | Description |
+|------|-----------|-------------|
+| Timeline | `TraceTimelineChart.tsx` | Hierarchical span tree with duration bars |
+| Flow | `TraceFlowView.tsx` | DAG-based visualization using React Flow |
+
+### Key Components
+
+- `TracesPage.tsx` - Live trace monitoring with auto-refresh
+- `TraceVisualization.tsx` - Unified wrapper for all trace views
+- `TraceFullScreenView.tsx` - Full-screen mode for detailed analysis
+- `TraceFlowComparison.tsx` - Side-by-side trace comparison

@@ -49,6 +49,19 @@ npm test -- --watch         # Watch mode
 npm test -- path/to/file.test.ts  # Single test file
 ```
 
+### CLI / NPX Package
+```bash
+npm run build:cli           # Build CLI only
+npm run build:all           # Build UI + server + CLI
+npm run demo                # Build all + run in demo mode
+
+# NPX usage (after publishing)
+npx @opensearch-project/agent-health           # Start with sample data
+npx @opensearch-project/agent-health --port 8080
+npx @opensearch-project/agent-health --configure  # Interactive setup
+npx @opensearch-project/agent-health --env-file .env
+```
+
 ### Setup (first time)
 ```bash
 ./scripts/setup.sh              # Quick start (assumes ML-Commons running)
@@ -111,12 +124,23 @@ import { TestCase } from '@/types';
 import { getConfig } from '@/lib/config';
 ```
 
+### CLI (`cli/`)
+
+Entry point for NPX package (`bin/cli.js` → `cli/index.ts`):
+- `commands/demo.ts`: Demo mode with sample data and mock services
+- `commands/configure.ts`: Interactive configuration wizard
+- `demo/sample*.ts`: Sample test cases, experiments, runs, traces
+- `utils/startServer.ts`: Server bootstrap for CLI context
+
 ### Directory Structure
 
 ```
 .
-├── components/        # React UI components (shadcn/ui + custom)
-├── services/          # Business logic layer
+├── cli/              # NPX package entry point
+│   ├── commands/     # CLI command handlers (demo, configure)
+│   └── demo/         # Sample data generators
+├── components/       # React UI components (shadcn/ui + custom)
+├── services/         # Business logic layer
 │   ├── agent/        # AG-UI protocol handling (SSE, conversion)
 │   ├── client/       # Browser-side API calls
 │   ├── evaluation/   # Judge, mock data
@@ -191,7 +215,7 @@ Express server on port 4001 provides:
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`: Bedrock credentials for LLM judge
 
 **Optional** (all have sensible defaults):
-- `PULSAR_ENDPOINT` / `HOLMESGPT_ENDPOINT` / `MLCOMMONS_ENDPOINT`: Agent endpoints
+- `LANGGRAPH_ENDPOINT` / `HOLMESGPT_ENDPOINT` / `MLCOMMONS_ENDPOINT`: Agent endpoints
 - `OPENSEARCH_STORAGE_*`: Storage cluster for test cases/experiments (features degrade if missing)
 - `OPENSEARCH_LOGS_*`: Logs cluster for agent execution logs (features degrade if missing)
 - `MLCOMMONS_HEADER_*`: Headers for ML-Commons agent data source access (see [docs/ML-COMMONS-SETUP.md](docs/ML-COMMONS-SETUP.md))
@@ -303,6 +327,10 @@ Tests are located in `tests/` (integration) and `__tests__/` or `*.test.ts` (uni
 - `tests/unit/` - Unit tests for individual functions
 - Service tests in `services/*/(__tests__|*.test.ts)` - Colocated with implementation
 
+**Mocking:**
+- Config mock at `__mocks__/@/lib/config.ts` - auto-loaded by Jest for `@/lib/config` imports
+- Use this pattern for mocking other shared modules
+
 ## OpenSearch Project Compliance
 
 This repository follows OpenSearch project conventions:
@@ -317,4 +345,54 @@ This repository follows OpenSearch project conventions:
 **Customizable files:**
 - [FEATURES.md](FEATURES.md), [ONBOARDING.md](ONBOARDING.md), [RELEASING.md](RELEASING.md), [RESPONSIBILITIES.md](RESPONSIBILITIES.md)
 - [PULL_REQUEST_TEMPLATE.md](PULL_REQUEST_TEMPLATE.md)
+
+**License Headers (REQUIRED for all source files):**
+All source files MUST include an SPDX license header. Add the appropriate header at the top of new files:
+
+```typescript
+// For .ts, .tsx, .js, .jsx, .cjs, .mjs, .css files:
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+```
+
+```bash
+# For .sh files (after shebang if present):
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+```
+
+```html
+<!-- For .html files (after DOCTYPE if present): -->
+<!--
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+-->
+```
+
+**DCO Signoff (REQUIRED for all commits):**
+All commits MUST include a DCO (Developer Certificate of Origin) signoff. This is enforced by CI.
+
+```bash
+# Use -s flag when committing
+git commit -s -m "feat: your commit message"
+
+# Or use -S for GPG signing + signoff
+git commit -s -S -m "feat: your commit message"
+```
+
+The signoff line will be added automatically:
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+To fix commits missing signoff, use:
+```bash
+# Amend last commit
+git commit --amend -s --no-edit
+
+# Rebase and signoff all commits (interactive)
+git rebase -i HEAD~N  # then use 'edit' and run: git commit --amend -s --no-edit && git rebase --continue
+```
 

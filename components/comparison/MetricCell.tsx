@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { CheckCircle2, XCircle, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';

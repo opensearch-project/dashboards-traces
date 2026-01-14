@@ -1,9 +1,15 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GitBranch, Scale } from 'lucide-react';
+import { GitBranch, Scale, Activity } from 'lucide-react';
 import { EvaluationReport, ExperimentRun } from '@/types';
 import { TrajectorySection } from './sections/TrajectorySection';
 import { JudgeSection } from './sections/JudgeSection';
+import { TraceFlowComparison } from './sections/TraceFlowComparison';
 
 interface UseCaseExpandedRowProps {
   useCaseId: string;
@@ -24,6 +30,10 @@ export const UseCaseExpandedRow: React.FC<UseCaseExpandedRowProps> = ({
             <GitBranch size={14} />
             Trajectory
           </TabsTrigger>
+          <TabsTrigger value="traces" className="gap-2">
+            <Activity size={14} />
+            Traces
+          </TabsTrigger>
           <TabsTrigger value="judge" className="gap-2">
             <Scale size={14} />
             LLM Judge
@@ -32,6 +42,14 @@ export const UseCaseExpandedRow: React.FC<UseCaseExpandedRowProps> = ({
 
         <TabsContent value="trajectory" className="mt-0">
           <TrajectorySection
+            runs={runs}
+            reports={reports}
+            useCaseId={useCaseId}
+          />
+        </TabsContent>
+
+        <TabsContent value="traces" className="mt-0">
+          <TraceFlowComparison
             runs={runs}
             reports={reports}
             useCaseId={useCaseId}

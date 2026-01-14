@@ -1,15 +1,29 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Traces Service - Fetch and process trace data from OpenSearch
  */
 
 import { Span, TimeRange, TraceQueryParams, TraceSearchResult } from '@/types';
-import { ENV_CONFIG } from '@/lib/config';
+
+// Re-export trace grouping utilities
+export { groupSpansByTrace, getSpansForTrace } from './traceGrouping';
 
 /**
- * Get API base URL from judge API config
+ * Get API base URL dynamically
+ * Server-side (Node.js): Use localhost with PORT env var
+ * Client-side (browser): Use relative URLs
  */
 function getApiBaseUrl(): string {
-  return ENV_CONFIG.judgeApiUrl.replace('/api/judge', '');
+  const isServerSide = typeof window === 'undefined';
+  if (isServerSide) {
+    const port = process.env?.PORT || '4001';
+    return `http://localhost:${port}`;
+  }
+  return ''; // Relative URLs in browser
 }
 
 /**
@@ -42,6 +56,28 @@ export async function fetchTraceById(traceId: string): Promise<TraceSearchResult
  */
 export async function fetchTracesByRunIds(runIds: string[]): Promise<TraceSearchResult> {
   return fetchTraces({ runIds });
+}
+
+/**
+ * Fetch recent traces for live tailing
+ */
+export async function fetchRecentTraces(options: {
+  minutesAgo?: number;
+  serviceName?: string;
+  textSearch?: string;
+  size?: number;
+}): Promise<TraceSearchResult> {
+  const { minutesAgo = 5, serviceName, textSearch, size = 500 } = options;
+  const now = Date.now();
+  const startTime = now - (minutesAgo * 60 * 1000);
+
+  return fetchTraces({
+    startTime,
+    endTime: now,
+    serviceName,
+    textSearch,
+    size,
+  });
 }
 
 /**
@@ -163,3 +199,73 @@ export function flattenVisibleSpans(
 
   return result;
 }
+
+// Re-export categorization functions
+export {
+  categorizeSpan,
+  categorizeSpans,
+  categorizeSpanTree,
+  getSpanCategory,
+  getCategoryMeta,
+  filterSpansByCategory,
+  filterSpanTreeByCategory,
+  countByCategory,
+  buildDisplayName,
+  checkOTelCompliance,
+  hasAnyWarnings,
+} from './spanCategorization';
+
+// Re-export tool similarity functions
+export {
+  extractCommonArgKeys,
+  groupToolSpans,
+  calculateToolSimilarity,
+  getToolGroupStats,
+} from './toolSimilarity';
+
+// Re-export trace comparison functions
+export {
+  calculateSpanSimilarity,
+  compareTraces,
+  flattenAlignedTree,
+  getComparisonTypeInfo,
+} from './traceComparison';
+
+// Re-export flow transform functions
+export {
+  spansToFlow,
+  applyDagreLayout,
+  detectParallelExecution,
+  countSpansInTree,
+} from './flowTransform';
+
+// Re-export execution order transform functions
+export {
+  spansToExecutionFlow,
+  isContainerSpan,
+  findMainFlowSpans,
+  sortByStartTime,
+} from './executionOrderTransform';
+
+// Re-export intent transform functions
+export {
+  spansToIntentNodes,
+  getRootContainerSpan,
+} from './intentTransform';
+
+// Re-export category styles
+export {
+  CATEGORY_COLORS,
+  getCategoryColors,
+  type CategoryColorConfig,
+} from './categoryStyles';
+
+// Re-export trace stats utilities
+export {
+  flattenSpans,
+  calculateCategoryStats,
+  extractToolName,
+  extractToolStats,
+  type CategoryStats,
+  type ToolInfo,
+} from './traceStats';

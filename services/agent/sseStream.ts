@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Server-Sent Events (SSE) Stream Consumer
  * Handles streaming connections to the agent endpoint

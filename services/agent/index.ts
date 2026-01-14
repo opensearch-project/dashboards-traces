@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Agent Communication Module
  * Exports clean API for interacting with the Ampabhi-SOAP agent

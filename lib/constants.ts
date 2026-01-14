@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { AppConfig } from '@/types';
 import { ENV_CONFIG, buildMLCommonsHeaders } from './config';
 
@@ -23,14 +28,14 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
 export const DEFAULT_CONFIG: AppConfig = {
   agents: [
     {
-      key: "pulsar",
-      name: "Pulsar",
-      endpoint: ENV_CONFIG.pulsarEndpoint,
-      description: "Pulsar AG-UI agent server",
+      key: "langgraph",
+      name: "Langgraph",
+      endpoint: ENV_CONFIG.langgraphEndpoint,
+      description: "Langgraph AG-UI agent server",
       models: [
         "claude-sonnet-4.5",
       ],
-      headers: {}, // No headers needed for Pulsar
+      headers: {}, // No headers needed for Langgraph
       useTraces: true, // Use traces instead of logs for evaluation (traces take ~5 min to propagate)
     },
     {

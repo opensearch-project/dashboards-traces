@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState } from 'react';
 import { TrajectoryStep, ToolCallStatus } from '@/types';
 import { ChevronDown, ChevronRight } from 'lucide-react';

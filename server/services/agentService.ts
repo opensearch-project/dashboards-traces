@@ -1,8 +1,14 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Agent Service - Proxy SSE streaming requests to agents
  */
 
 import { Response } from 'express';
+import { useMockAgent } from '../app.js';
 
 // ============================================================================
 // Types
@@ -48,6 +54,109 @@ export function sendErrorEvent(res: Response, message: string): void {
 }
 
 /**
+ * Stream mock agent response (AG-UI events) for demo mode
+ */
+async function streamMockAgentResponse(payload: any, res: Response): Promise<void> {
+  const runId = `mock-run-${Date.now()}`;
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  // Extract test case name from payload for personalized response
+  const prompt = payload?.parameters?.question || payload?.question || 'the issue';
+
+  // RUN_STARTED
+  res.write(`data: ${JSON.stringify({ type: 'RUN_STARTED', threadId: runId, runId, timestamp: Date.now() })}\n\n`);
+  await sleep(100);
+
+  // TEXT_MESSAGE_START - Initial thinking
+  const msgId1 = `msg-${Date.now()}-1`;
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_START', messageId: msgId1, role: 'assistant', timestamp: Date.now() })}\n\n`);
+  await sleep(50);
+
+  // Stream thinking content
+  const thinkingContent = `I need to investigate this issue. Let me start by checking the cluster health and then drill down into specific metrics.`;
+  for (const char of thinkingContent) {
+    res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_CONTENT', messageId: msgId1, delta: char })}\n\n`);
+    await sleep(20);
+  }
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_END', messageId: msgId1, timestamp: Date.now() })}\n\n`);
+  await sleep(300);
+
+  // TOOL_CALL_START - First tool
+  const toolId1 = `tool-${Date.now()}-1`;
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_START', toolCallId: toolId1, toolCallName: 'opensearch_cluster_health', timestamp: Date.now() })}\n\n`);
+  await sleep(100);
+
+  // Tool args
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_ARGS', toolCallId: toolId1, delta: '{"local": true}' })}\n\n`);
+  await sleep(50);
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_END', toolCallId: toolId1, timestamp: Date.now() })}\n\n`);
+  await sleep(500);
+
+  // TOOL_RESULT
+  const toolResult1 = JSON.stringify({ status: 'yellow', number_of_nodes: 3, unassigned_shards: 0 });
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_RESULT', toolCallId: toolId1, result: toolResult1, timestamp: Date.now() })}\n\n`);
+  await sleep(300);
+
+  // TEXT_MESSAGE_START - Analysis
+  const msgId2 = `msg-${Date.now()}-2`;
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_START', messageId: msgId2, role: 'assistant', timestamp: Date.now() })}\n\n`);
+  await sleep(50);
+
+  const analysisContent = `The cluster is in yellow state. Let me check the node stats to identify which node might be causing issues.`;
+  for (const char of analysisContent) {
+    res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_CONTENT', messageId: msgId2, delta: char })}\n\n`);
+    await sleep(15);
+  }
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_END', messageId: msgId2, timestamp: Date.now() })}\n\n`);
+  await sleep(300);
+
+  // TOOL_CALL_START - Second tool
+  const toolId2 = `tool-${Date.now()}-2`;
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_START', toolCallId: toolId2, toolCallName: 'opensearch_nodes_stats', timestamp: Date.now() })}\n\n`);
+  await sleep(100);
+
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_ARGS', toolCallId: toolId2, delta: '{"metric": "jvm,os"}' })}\n\n`);
+  await sleep(50);
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_CALL_END', toolCallId: toolId2, timestamp: Date.now() })}\n\n`);
+  await sleep(600);
+
+  // TOOL_RESULT
+  const toolResult2 = 'Node-1: CPU 12%, JVM Heap 45%\nNode-2: CPU 15%, JVM Heap 52%\nNode-3: CPU 98%, JVM Heap 89% (Data Node)';
+  res.write(`data: ${JSON.stringify({ type: 'TOOL_RESULT', toolCallId: toolId2, result: toolResult2, timestamp: Date.now() })}\n\n`);
+  await sleep(400);
+
+  // TEXT_MESSAGE_START - Conclusion
+  const msgId3 = `msg-${Date.now()}-3`;
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_START', messageId: msgId3, role: 'assistant', timestamp: Date.now() })}\n\n`);
+  await sleep(50);
+
+  const conclusionContent = `## Root Cause Analysis Complete
+
+**Finding:** High CPU utilization detected on Node-3 (98% CPU, 89% JVM Heap)
+
+**Root Cause:** Node-3 is experiencing resource exhaustion, likely due to:
+1. Heavy indexing or search operations
+2. Garbage collection pressure from high heap usage
+3. Possible hot spot in shard distribution
+
+**Recommendations:**
+1. Check hot threads on Node-3 using \`_nodes/Node-3/hot_threads\`
+2. Review shard distribution and consider rebalancing
+3. Monitor GC logs for long pauses
+4. Consider scaling horizontally if load persists`;
+
+  for (const char of conclusionContent) {
+    res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_CONTENT', messageId: msgId3, delta: char })}\n\n`);
+    await sleep(10);
+  }
+  res.write(`data: ${JSON.stringify({ type: 'TEXT_MESSAGE_END', messageId: msgId3, timestamp: Date.now() })}\n\n`);
+  await sleep(100);
+
+  // RUN_FINISHED
+  res.write(`data: ${JSON.stringify({ type: 'RUN_FINISHED', threadId: runId, runId, timestamp: Date.now() })}\n\n`);
+}
+
+/**
  * Proxy agent request and stream SSE response back to client
  *
  * @param request - Agent proxy request configuration
@@ -66,6 +175,14 @@ export async function proxyAgentRequest(
 
   // Set SSE headers for streaming response
   setSSEHeaders(res);
+
+  // Use mock agent in demo mode
+  if (useMockAgent()) {
+    console.log('[AgentProxy] Using mock agent (demo mode)');
+    await streamMockAgentResponse(payload, res);
+    res.end();
+    return;
+  }
 
   // Make request to agent endpoint
   const response = await fetch(endpoint, {

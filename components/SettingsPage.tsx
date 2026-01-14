@@ -1,11 +1,17 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, Trash2, Database, CheckCircle2, XCircle, Upload, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, Trash2, Database, CheckCircle2, XCircle, Upload, Download, Loader2, Server, Plus, Edit2, X, Save, ExternalLink } from 'lucide-react';
 import { isDebugEnabled, setDebugEnabled } from '@/lib/debug';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { storageAdmin } from '@/services/storage/opensearchClient';
 import {
   hasLocalStorageData,
@@ -15,6 +21,7 @@ import {
   clearLocalStorageData,
   MigrationStats,
 } from '@/services/storage';
+import { DEFAULT_CONFIG } from '@/lib/constants';
 
 interface StorageStats {
   testCases: number;
@@ -22,6 +29,29 @@ interface StorageStats {
   runs: number;
   analytics: number;
   isConnected: boolean;
+}
+
+interface AgentEndpoint {
+  id: string;
+  name: string;
+  endpoint: string;
+}
+
+const STORAGE_KEY = 'agenteval_custom_endpoints';
+
+// Load custom endpoints from localStorage
+function loadCustomEndpoints(): AgentEndpoint[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Save custom endpoints to localStorage
+function saveCustomEndpoints(endpoints: AgentEndpoint[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(endpoints));
 }
 
 export const SettingsPage: React.FC = () => {
@@ -35,6 +65,14 @@ export const SettingsPage: React.FC = () => {
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationStatus, setMigrationStatus] = useState<string>('');
   const [migrationResult, setMigrationResult] = useState<MigrationStats | null>(null);
+
+  // Agent endpoints state
+  const [customEndpoints, setCustomEndpoints] = useState<AgentEndpoint[]>([]);
+  const [isAddingEndpoint, setIsAddingEndpoint] = useState(false);
+  const [editingEndpointId, setEditingEndpointId] = useState<string | null>(null);
+  const [newEndpointName, setNewEndpointName] = useState('');
+  const [newEndpointUrl, setNewEndpointUrl] = useState('');
+  const [endpointUrlError, setEndpointUrlError] = useState<string | null>(null);
 
   const loadStorageStats = useCallback(async () => {
     setIsLoading(true);
@@ -73,7 +111,95 @@ export const SettingsPage: React.FC = () => {
     if (hasData) {
       setLocalCounts(getLocalStorageCounts());
     }
+
+    // Load custom agent endpoints
+    setCustomEndpoints(loadCustomEndpoints());
   }, [loadStorageStats]);
+
+  // Validate URL format
+  const validateEndpointUrl = (url: string): string | null => {
+    if (!url.trim()) return 'URL is required';
+    try {
+      const parsed = new URL(url.trim());
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return 'URL must use http or https protocol';
+      }
+      return null;
+    } catch {
+      return 'Invalid URL format';
+    }
+  };
+
+  // Agent endpoints handlers
+  const handleAddEndpoint = () => {
+    if (!newEndpointName.trim() || !newEndpointUrl.trim()) return;
+
+    const urlError = validateEndpointUrl(newEndpointUrl);
+    if (urlError) {
+      setEndpointUrlError(urlError);
+      return;
+    }
+
+    const newEndpoint: AgentEndpoint = {
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: newEndpointName.trim(),
+      endpoint: newEndpointUrl.trim(),
+    };
+
+    const updated = [...customEndpoints, newEndpoint];
+    setCustomEndpoints(updated);
+    saveCustomEndpoints(updated);
+
+    setNewEndpointName('');
+    setNewEndpointUrl('');
+    setEndpointUrlError(null);
+    setIsAddingEndpoint(false);
+  };
+
+  const handleUpdateEndpoint = (id: string) => {
+    if (!newEndpointName.trim() || !newEndpointUrl.trim()) return;
+
+    const urlError = validateEndpointUrl(newEndpointUrl);
+    if (urlError) {
+      setEndpointUrlError(urlError);
+      return;
+    }
+
+    const updated = customEndpoints.map(ep =>
+      ep.id === id
+        ? { ...ep, name: newEndpointName.trim(), endpoint: newEndpointUrl.trim() }
+        : ep
+    );
+
+    setCustomEndpoints(updated);
+    saveCustomEndpoints(updated);
+    setEditingEndpointId(null);
+    setNewEndpointName('');
+    setNewEndpointUrl('');
+    setEndpointUrlError(null);
+  };
+
+  const handleDeleteEndpoint = (id: string) => {
+    if (!window.confirm('Remove this endpoint?')) return;
+
+    const updated = customEndpoints.filter(ep => ep.id !== id);
+    setCustomEndpoints(updated);
+    saveCustomEndpoints(updated);
+  };
+
+  const startEditEndpoint = (endpoint: AgentEndpoint) => {
+    setEditingEndpointId(endpoint.id);
+    setNewEndpointName(endpoint.name);
+    setNewEndpointUrl(endpoint.endpoint);
+  };
+
+  const cancelEdit = () => {
+    setEditingEndpointId(null);
+    setIsAddingEndpoint(false);
+    setNewEndpointName('');
+    setNewEndpointUrl('');
+    setEndpointUrlError(null);
+  };
 
   const handleDebugToggle = (checked: boolean) => {
     setDebugEnabled(checked);
@@ -167,6 +293,193 @@ export const SettingsPage: React.FC = () => {
               </AlertDescription>
             </Alert>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Agent Endpoints */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Server size={18} />
+            Agent Endpoints
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Built-in Agents */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Built-in Agents</Label>
+            {DEFAULT_CONFIG.agents.map((agent) => (
+              <div
+                key={agent.key}
+                className="p-3 border rounded-lg bg-muted/5 flex items-start justify-between gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    {agent.name}
+                    <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">built-in</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-1">
+                    <ExternalLink size={10} />
+                    {agent.endpoint || <span className="italic">Not configured</span>}
+                  </div>
+                  {agent.description && (
+                    <div className="text-xs text-muted-foreground mt-1">{agent.description}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Custom Endpoints Section */}
+          <div className="border-t pt-4 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Custom Endpoints</Label>
+              {!isAddingEndpoint && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddingEndpoint(true)}
+                >
+                  <Plus size={14} className="mr-1" />
+                  Add
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Add custom agent endpoints. These are stored in browser localStorage.
+            </p>
+          </div>
+
+          {/* Add new endpoint form */}
+          {isAddingEndpoint && (
+            <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-endpoint-name" className="text-xs">Name</Label>
+                <Input
+                  id="new-endpoint-name"
+                  placeholder="My Agent"
+                  value={newEndpointName}
+                  onChange={(e) => setNewEndpointName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-endpoint-url" className="text-xs">Endpoint URL</Label>
+                <Input
+                  id="new-endpoint-url"
+                  placeholder="http://localhost:3000/api/agent"
+                  value={newEndpointUrl}
+                  onChange={(e) => {
+                    setNewEndpointUrl(e.target.value);
+                    setEndpointUrlError(null);
+                  }}
+                  className={endpointUrlError ? 'border-red-500' : ''}
+                />
+                {endpointUrlError && (
+                  <p className="text-xs text-red-500">{endpointUrlError}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAddEndpoint} disabled={!newEndpointName.trim() || !newEndpointUrl.trim()}>
+                  <Save size={14} className="mr-1" />
+                  Save
+                </Button>
+                <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                  <X size={14} className="mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* List of custom endpoints */}
+          {customEndpoints.length > 0 ? (
+            <div className="space-y-2">
+              {customEndpoints.map((ep) => (
+                <div
+                  key={ep.id}
+                  className="p-3 border rounded-lg bg-muted/10 flex items-start justify-between gap-3"
+                >
+                  {editingEndpointId === ep.id ? (
+                    <div className="flex-1 space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Name</Label>
+                        <Input
+                          value={newEndpointName}
+                          onChange={(e) => setNewEndpointName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Endpoint URL</Label>
+                        <Input
+                          value={newEndpointUrl}
+                          onChange={(e) => {
+                            setNewEndpointUrl(e.target.value);
+                            setEndpointUrlError(null);
+                          }}
+                          className={endpointUrlError ? 'border-red-500' : ''}
+                        />
+                        {endpointUrlError && (
+                          <p className="text-xs text-red-500">{endpointUrlError}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => handleUpdateEndpoint(ep.id)}>
+                          <Save size={14} className="mr-1" />
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                          <X size={14} className="mr-1" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm">{ep.name}</div>
+                        <div className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-1">
+                          <ExternalLink size={10} />
+                          {ep.endpoint}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => startEditEndpoint(ep)}
+                        >
+                          <Edit2 size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteEndpoint(ep.id)}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            !isAddingEndpoint && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                No custom endpoints configured.
+                <br />
+                <span className="text-xs">Click "Add Endpoint" to configure a new agent endpoint.</span>
+              </div>
+            )
+          )}
+
+          <Alert className="bg-blue-900/10 border-blue-700/20">
+            <AlertDescription className="text-xs text-blue-300">
+              Custom endpoints will appear in the agent selector during evaluations.
+              For authentication, use environment variables in the server configuration.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 

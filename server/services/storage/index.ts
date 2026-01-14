@@ -1,19 +1,36 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Server-side Storage Services
  *
  * Core OpenSearch operations extracted from routes.
  * Used by both routes and server-side code like experimentRunner.
+ *
+ * Storage is optional - when OpenSearch is not configured, these functions
+ * throw errors. Routes should check isStorageConfigured() first and use
+ * sample data when storage is unavailable.
  */
 
-import { getOpenSearchClient, INDEXES } from '../opensearchClient';
+import { getOpenSearchClient, INDEXES, isStorageConfigured } from '../opensearchClient.js';
+
+// Re-export for convenience
+export { isStorageConfigured };
 
 // ==================== Test Cases ====================
 
 /**
  * Get all test cases (latest versions)
+ * Throws if storage is not configured
  */
 export async function getAllTestCases(): Promise<any[]> {
   const client = getOpenSearchClient();
+  if (!client) {
+    throw new Error('Storage not configured');
+  }
+
   const result = await client.search({
     index: INDEXES.testCases,
     body: {
@@ -40,9 +57,14 @@ export async function getAllTestCases(): Promise<any[]> {
 
 /**
  * Get test case by ID (latest version)
+ * Throws if storage is not configured
  */
 export async function getTestCaseById(id: string): Promise<any | null> {
   const client = getOpenSearchClient();
+  if (!client) {
+    throw new Error('Storage not configured');
+  }
+
   const result = await client.search({
     index: INDEXES.testCases,
     body: {
@@ -59,9 +81,14 @@ export async function getTestCaseById(id: string): Promise<any | null> {
 
 /**
  * Create a run
+ * Throws if storage is not configured
  */
 export async function createRun(run: any): Promise<any> {
   const client = getOpenSearchClient();
+  if (!client) {
+    throw new Error('Storage not configured');
+  }
+
   const id = run.id || generateId('run');
   const createdAt = new Date().toISOString();
 
@@ -89,9 +116,14 @@ export async function createRun(run: any): Promise<any> {
 
 /**
  * Get run by ID
+ * Throws if storage is not configured
  */
 export async function getRunById(id: string): Promise<any | null> {
   const client = getOpenSearchClient();
+  if (!client) {
+    throw new Error('Storage not configured');
+  }
+
   try {
     const result = await client.get({ index: INDEXES.runs, id });
     return result.body.found ? result.body._source : null;
@@ -105,9 +137,14 @@ export async function getRunById(id: string): Promise<any | null> {
 
 /**
  * Partial update of a run
+ * Throws if storage is not configured
  */
 export async function updateRun(id: string, updates: any): Promise<any> {
   const client = getOpenSearchClient();
+  if (!client) {
+    throw new Error('Storage not configured');
+  }
+
   await client.update({
     index: INDEXES.runs,
     id,
@@ -121,6 +158,7 @@ export async function updateRun(id: string, updates: any): Promise<any> {
 
 /**
  * Save an evaluation report (converts from app format to storage format)
+ * Throws if storage is not configured
  */
 export async function saveReport(
   report: any,
@@ -174,6 +212,8 @@ function generateId(prefix: string): string {
 
 async function writeAnalyticsRecord(run: any): Promise<void> {
   const client = getOpenSearchClient();
+  if (!client) return; // Skip analytics if no storage
+
   const analyticsDoc: any = {
     analyticsId: `analytics-${run.id}`,
     runId: run.id,

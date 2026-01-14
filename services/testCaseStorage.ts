@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { TestCase, TestCaseVersion, AgentContextItem, AgentToolDefinition } from '@/types';
 import { TEST_CASES } from '@/data/testCases';
 

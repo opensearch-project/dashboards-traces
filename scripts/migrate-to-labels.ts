@@ -1,4 +1,9 @@
 #!/usr/bin/env npx ts-node
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Migration Script: Convert category/subcategory/difficulty to unified labels system
  *

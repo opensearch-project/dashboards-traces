@@ -1,16 +1,25 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Experiments Routes - Immutable experiments, only runs can be updated
+ *
+ * Sample data (demo-*) is always included in responses.
+ * Real data from OpenSearch is merged when configured.
  */
 
 import { Router, Request, Response } from 'express';
-import { getOpenSearchClient, INDEXES } from '../../services/opensearchClient';
-import { getAllTestCases } from '../../services/storage';
-import { Experiment, ExperimentRun, ExperimentProgress, RunConfigInput } from '../../../types';
+import { getOpenSearchClient, isStorageConfigured, INDEXES } from '../../services/opensearchClient.js';
+import { SAMPLE_EXPERIMENTS, isSampleExperimentId } from '../../../cli/demo/sampleExperiments.js';
+import { SAMPLE_TEST_CASES } from '../../../cli/demo/sampleTestCases.js';
+import { Experiment, ExperimentRun, ExperimentProgress, RunConfigInput, TestCase } from '../../../types/index.js';
 import {
   executeRun,
   createCancellationToken,
   CancellationToken,
-} from '../../../services/experimentRunner';
+} from '../../../services/experimentRunner.js';
 
 const router = Router();
 const INDEX = INDEXES.experiments;
@@ -20,6 +29,13 @@ const activeRuns = new Map<string, CancellationToken>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/**
+ * Check if an ID belongs to sample data (read-only)
+ */
+function isSampleId(id: string): boolean {
+  return id.startsWith('demo-');
 }
 
 /**
@@ -42,21 +58,73 @@ function validateRunConfig(config: any): string | null {
   return null;
 }
 
-// GET /api/storage/experiments - List all
-router.get('/api/storage/experiments', async (_req: Request, res: Response) => {
+/**
+ * Get all test cases (sample + real) for lookups
+ */
+async function getAllTestCases(): Promise<TestCase[]> {
+  const sampleTestCases = SAMPLE_TEST_CASES.map(s => ({
+    id: s.id,
+    name: s.name,
+  })) as TestCase[];
+
+  if (!isStorageConfigured()) {
+    return sampleTestCases;
+  }
+
   try {
-    const client = getOpenSearchClient();
+    const client = getOpenSearchClient()!;
     const result = await client.search({
-      index: INDEX,
+      index: INDEXES.testCases,
       body: {
-        size: 1000,
-        sort: [{ createdAt: { order: 'desc' } }],
+        size: 10000,
+        _source: ['id', 'name'],
         query: { match_all: {} },
       },
     });
+    const realTestCases = result.body.hits?.hits?.map((hit: any) => hit._source) || [];
+    return [...sampleTestCases, ...realTestCases];
+  } catch {
+    return sampleTestCases;
+  }
+}
 
-    const experiments = result.body.hits?.hits?.map((hit: any) => hit._source) || [];
-    res.json({ experiments, total: experiments.length });
+// GET /api/storage/experiments - List all
+router.get('/api/storage/experiments', async (_req: Request, res: Response) => {
+  try {
+    let realData: Experiment[] = [];
+
+    // Fetch from OpenSearch if configured
+    if (isStorageConfigured()) {
+      try {
+        const client = getOpenSearchClient()!;
+        const result = await client.search({
+          index: INDEX,
+          body: {
+            size: 1000,
+            sort: [{ createdAt: { order: 'desc' } }],
+            query: { match_all: {} },
+          },
+        });
+        realData = result.body.hits?.hits?.map((hit: any) => hit._source) || [];
+      } catch (e: any) {
+        console.warn('[StorageAPI] OpenSearch unavailable, returning sample data only:', e.message);
+      }
+    }
+
+    // Sort real data by createdAt descending (newest first)
+    // OpenSearch query already sorts, but ensure consistency
+    const sortedRealData = realData.sort((a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    // Sort sample data by createdAt descending
+    const sortedSampleData = [...SAMPLE_EXPERIMENTS].sort((a, b) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
+
+    // User data first, then sample data
+    const allData = [...sortedRealData, ...sortedSampleData];
+    res.json({ experiments: allData, total: allData.length });
   } catch (error: any) {
     console.error('[StorageAPI] List experiments failed:', error.message);
     res.status(500).json({ error: error.message });
@@ -66,8 +134,24 @@ router.get('/api/storage/experiments', async (_req: Request, res: Response) => {
 // GET /api/storage/experiments/:id - Get by ID
 router.get('/api/storage/experiments/:id', async (req: Request, res: Response) => {
   try {
-    const client = getOpenSearchClient();
-    const result = await client.get({ index: INDEX, id: req.params.id });
+    const { id } = req.params;
+
+    // Check sample data first
+    if (isSampleId(id)) {
+      const sample = SAMPLE_EXPERIMENTS.find(exp => exp.id === id);
+      if (sample) {
+        return res.json(sample);
+      }
+      return res.status(404).json({ error: 'Experiment not found' });
+    }
+
+    // Fetch from OpenSearch
+    if (!isStorageConfigured()) {
+      return res.status(404).json({ error: 'Experiment not found' });
+    }
+
+    const client = getOpenSearchClient()!;
+    const result = await client.get({ index: INDEX, id });
 
     if (!result.body.found) {
       return res.status(404).json({ error: 'Experiment not found' });
@@ -85,8 +169,19 @@ router.get('/api/storage/experiments/:id', async (req: Request, res: Response) =
 // POST /api/storage/experiments - Create
 router.post('/api/storage/experiments', async (req: Request, res: Response) => {
   try {
-    const client = getOpenSearchClient();
     const experiment = { ...req.body };
+
+    // Reject creating with demo- prefix
+    if (experiment.id && isSampleId(experiment.id)) {
+      return res.status(400).json({ error: 'Cannot create experiment with demo- prefix (reserved for sample data)' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot create experiments in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
 
     if (!experiment.id) experiment.id = generateId('exp');
     experiment.createdAt = new Date().toISOString();
@@ -112,11 +207,21 @@ router.put('/api/storage/experiments/:id', async (req: Request, res: Response) =
     const { id } = req.params;
     const { runs } = req.body;
 
+    // Reject modifying sample data
+    if (isSampleId(id)) {
+      return res.status(400).json({ error: 'Cannot modify sample data. Sample experiments are read-only.' });
+    }
+
     if (!runs) {
       return res.status(400).json({ error: 'Only runs can be updated. Provide { runs: [...] }' });
     }
 
-    const client = getOpenSearchClient();
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot update experiments in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
 
     // Get existing experiment
     const getResult = await client.get({ index: INDEX, id });
@@ -150,10 +255,22 @@ router.put('/api/storage/experiments/:id', async (req: Request, res: Response) =
 // DELETE /api/storage/experiments/:id - Delete
 router.delete('/api/storage/experiments/:id', async (req: Request, res: Response) => {
   try {
-    const client = getOpenSearchClient();
-    await client.delete({ index: INDEX, id: req.params.id, refresh: true });
+    const { id } = req.params;
 
-    console.log(`[StorageAPI] Deleted experiment: ${req.params.id}`);
+    // Reject deleting sample data
+    if (isSampleId(id)) {
+      return res.status(400).json({ error: 'Cannot delete sample data. Sample experiments are read-only.' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot delete experiments in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
+    await client.delete({ index: INDEX, id, refresh: true });
+
+    console.log(`[StorageAPI] Deleted experiment: ${id}`);
     res.json({ deleted: true });
   } catch (error: any) {
     if (error.meta?.statusCode === 404) {
@@ -172,7 +289,18 @@ router.post('/api/storage/experiments/bulk', async (req: Request, res: Response)
       return res.status(400).json({ error: 'experiments must be an array' });
     }
 
-    const client = getOpenSearchClient();
+    // Check for demo- prefixes
+    const hasDemoIds = experiments.some(exp => exp.id && isSampleId(exp.id));
+    if (hasDemoIds) {
+      return res.status(400).json({ error: 'Cannot create experiments with demo- prefix (reserved for sample data)' });
+    }
+
+    // Require OpenSearch for writes
+    if (!isStorageConfigured()) {
+      return res.status(400).json({ error: 'OpenSearch not configured. Cannot create experiments in sample-only mode.' });
+    }
+
+    const client = getOpenSearchClient()!;
     const now = new Date().toISOString();
     const operations: any[] = [];
 
@@ -200,14 +328,26 @@ router.post('/api/storage/experiments/:id/execute', async (req: Request, res: Re
   const { id } = req.params;
   const runConfig: RunConfigInput = req.body;
 
+  // Reject executing sample experiments (they're pre-completed)
+  if (isSampleId(id)) {
+    return res.status(400).json({
+      error: 'Cannot execute sample experiments. Sample data is read-only with pre-completed runs.',
+    });
+  }
+
   // Validate run configuration
   const validationError = validateRunConfig(runConfig);
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
 
+  // Require OpenSearch for execution
+  if (!isStorageConfigured()) {
+    return res.status(400).json({ error: 'OpenSearch not configured. Cannot execute experiments in sample-only mode.' });
+  }
+
   try {
-    const client = getOpenSearchClient();
+    const client = getOpenSearchClient()!;
 
     // Get experiment
     const getResult = await client.get({ index: INDEX, id });

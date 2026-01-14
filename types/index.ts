@@ -1,3 +1,10 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { Node, Edge } from '@xyflow/react';
+
 // Shared type for difficulty levels
 export type Difficulty = 'Easy' | 'Medium' | 'Hard';
 
@@ -293,14 +300,166 @@ export interface TimeRange {
 export interface TraceQueryParams {
   traceId?: string;
   runIds?: string[];
-  startTime?: Date;
-  endTime?: Date;
+  startTime?: number;  // Unix timestamp ms
+  endTime?: number;    // Unix timestamp ms
   size?: number;
+  serviceName?: string;
+  textSearch?: string;
 }
 
 export interface TraceSearchResult {
   spans: Span[];
   total: number;
+}
+
+/**
+ * Summary of a single trace (grouped spans)
+ * Used for trace list display before selecting one for detailed view
+ */
+export interface TraceSummary {
+  traceId: string;
+  serviceName: string;
+  spanCount: number;
+  rootSpanName: string;
+  startTime: string;
+  duration: number;
+  hasErrors: boolean;
+  spans: Span[];
+}
+
+// ============ Trace Tree View Types ============
+
+/**
+ * Span category based on OTel GenAI semantic conventions
+ * @see https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/
+ */
+export type SpanCategory = 'AGENT' | 'LLM' | 'TOOL' | 'ERROR' | 'OTHER';
+
+/**
+ * Extended span with category metadata for tree visualization
+ */
+export interface CategorizedSpan extends Span {
+  category: SpanCategory;
+  categoryLabel: string;
+  categoryColor: string;
+  categoryIcon: string; // lucide-react icon name
+  displayName: string; // Constructed label using OTel attributes
+}
+
+/**
+ * Configuration for tool similarity grouping
+ */
+export interface ToolSimilarityConfig {
+  /** Which tool arguments to use for determining "sameness" */
+  keyArguments: string[];
+  /** Whether grouping is enabled */
+  enabled: boolean;
+}
+
+/**
+ * Grouped tool spans for similarity view
+ */
+export interface ToolGroup {
+  toolName: string;
+  keyArgsValues: Record<string, any>;
+  spans: CategorizedSpan[];
+  count: number;
+  totalDuration: number;
+  avgDuration: number;
+}
+
+// ============ Trace Comparison Types ============
+
+/**
+ * Aligned span pair for tree comparison
+ */
+export interface AlignedSpanPair {
+  type: 'matched' | 'added' | 'removed' | 'modified';
+  leftSpan?: CategorizedSpan;
+  rightSpan?: CategorizedSpan;
+  similarity?: number;
+  children?: AlignedSpanPair[];
+}
+
+/**
+ * Result of comparing two trace trees
+ */
+export interface TraceComparisonResult {
+  alignedTree: AlignedSpanPair[];
+  stats: {
+    totalLeft: number;
+    totalRight: number;
+    matched: number;
+    added: number;
+    removed: number;
+    modified: number;
+  };
+}
+
+// ============ Trace Flow View Types ============
+
+/**
+ * Data payload for span nodes in React Flow
+ * Index signature required for React Flow compatibility
+ */
+export interface SpanNodeData extends Record<string, unknown> {
+  span: CategorizedSpan;
+  totalDuration: number;
+}
+
+/**
+ * Result of transforming spans to React Flow format
+ */
+export interface FlowTransformResult {
+  nodes: Node<SpanNodeData>[];
+  edges: Edge[];
+}
+
+/**
+ * Options for flow transformation
+ */
+export interface FlowTransformOptions {
+  direction?: 'TB' | 'LR'; // Top-to-bottom or Left-to-right
+  mode?: 'hierarchy' | 'execution-order'; // Flow mode: parent-child hierarchy or execution-order linking
+  nodeWidth?: number;
+  nodeHeight?: number;
+  nodeSpacingX?: number;
+  nodeSpacingY?: number;
+}
+
+/**
+ * Group of spans detected as parallel execution
+ */
+export interface ParallelGroup {
+  spans: CategorizedSpan[];
+  startTime: number;
+  endTime: number;
+}
+
+// ============ Intent View Types ============
+
+/**
+ * Result of checking OTEL GenAI semantic convention compliance
+ */
+export interface OTelComplianceResult {
+  isCompliant: boolean;
+  missingAttributes: string[];
+}
+
+/**
+ * Compressed node for Intent view - represents one or more consecutive same-category spans
+ */
+export interface IntentNode {
+  id: string;
+  category: SpanCategory;
+  spans: CategorizedSpan[];      // 1 or more spans in this group
+  count: number;                 // Number of spans (for "×N" badge)
+  displayName: string;           // e.g., "LLM" or "TOOL ×2"
+  subtitle: string;              // e.g., "callModel" or "search_api, list_items"
+  hasWarnings: boolean;          // Any span missing OTEL conventions
+  executionOrder: number;        // Position in time-series sequence
+  startIndex: number;            // 0-based index of first span in global sequence
+  totalDuration: number;         // Combined duration of all spans in this node (ms)
 }
 
 // ============ Experiment Types ============

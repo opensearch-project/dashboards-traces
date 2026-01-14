@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Admin Routes for Storage API
  * Handles health checks, index initialization, stats, and backfill operations

@@ -1,8 +1,21 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Trace Utility Functions
  */
 
 import { Span } from '@/types';
+import {
+  ATTR_GEN_AI_REQUEST_MODEL,
+  ATTR_GEN_AI_USAGE_INPUT_TOKENS,
+  ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+  ATTR_GEN_AI_REQUEST_TEMPERATURE,
+  ATTR_GEN_AI_TOOL_NAME,
+  ATTR_GEN_AI_TOOL_CALL_ID,
+} from '@opentelemetry/semantic-conventions/incubating';
 
 /**
  * Format duration in human-readable format
@@ -28,18 +41,18 @@ export function getKeyAttributes(span: Span): Record<string, string | number | n
   // Bedrock/LLM spans
   if (name.startsWith('bedrock.') || name.includes('llm') || name.includes('converse')) {
     return {
-      'Model': attrs['gen_ai.request.model']?.split('.').pop() || attrs['gen_ai.request.model'],
-      'Input Tokens': attrs['gen_ai.usage.input_tokens']?.toLocaleString(),
-      'Output Tokens': attrs['gen_ai.usage.output_tokens']?.toLocaleString(),
-      'Temperature': attrs['gen_ai.request.temperature'],
+      'Model': attrs[ATTR_GEN_AI_REQUEST_MODEL]?.split('.').pop() || attrs[ATTR_GEN_AI_REQUEST_MODEL],
+      'Input Tokens': attrs[ATTR_GEN_AI_USAGE_INPUT_TOKENS]?.toLocaleString(),
+      'Output Tokens': attrs[ATTR_GEN_AI_USAGE_OUTPUT_TOKENS]?.toLocaleString(),
+      'Temperature': attrs[ATTR_GEN_AI_REQUEST_TEMPERATURE],
     };
   }
 
   // Tool spans
   if (name.includes('tool')) {
     return {
-      'Tool': attrs['gen_ai.tool.name'] || name,
-      'Tool Call ID': attrs['gen_ai.tool.call_id'],
+      'Tool': attrs[ATTR_GEN_AI_TOOL_NAME] || name,
+      'Tool Call ID': attrs[ATTR_GEN_AI_TOOL_CALL_ID],
       'MCP Server': attrs['tool.mcp_server'],
     };
   }

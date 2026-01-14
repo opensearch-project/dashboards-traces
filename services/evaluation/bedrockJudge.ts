@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Bedrock LLM Judge Client
  * Calls backend proxy for AWS Bedrock evaluations

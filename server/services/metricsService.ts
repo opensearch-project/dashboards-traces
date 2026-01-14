@@ -1,7 +1,12 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Metrics Service - Compute trace-based metrics from OpenSearch
  *
- * Ported from NovaPulsarApplication/scripts/experiment/metrics.ts
+ * Ported from NovaLanggraphApplication/scripts/experiment/metrics.ts
  */
 
 import { MetricsResult, AggregateMetrics, OpenSearchConfig } from '@/types';

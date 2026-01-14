@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright OpenSearch Contributors
+# SPDX-License-Identifier: Apache-2.0
+
 # AgentEval Setup Script
 # Automates the complete setup of AgentEval environment with ML-Commons AG-UI agent
 #

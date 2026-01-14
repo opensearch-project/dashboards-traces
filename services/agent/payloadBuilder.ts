@@ -1,3 +1,8 @@
+/*
+ * Copyright OpenSearch Contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * Agent Request Payload Builder
  * Constructs the request payload for the OpenSearch ML agent endpoint
