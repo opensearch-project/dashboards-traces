@@ -141,12 +141,10 @@ export async function executeRun(
         const bedrockModelId = getBedrockModelId(run.modelId);
 
         // Run the evaluation
-        const judgeKey = run.judgeKey || 'bedrock'; // Default to Bedrock judge
         const report = await runEvaluation(
           agentConfig,
           bedrockModelId,
           testCase,
-          judgeKey,
           () => {} // No step callback needed here
         );
 
@@ -239,13 +237,11 @@ export async function runSingleUseCase(
 ): Promise<string> {
   const agentConfig = buildAgentConfigForRun(run);
   const bedrockModelId = getBedrockModelId(run.modelId);
-  const judgeKey = run.judgeKey || 'bedrock'; // Default to Bedrock judge
 
   const report = await runEvaluation(
     agentConfig,
     bedrockModelId,
     testCase,
-    judgeKey,
     onStep || (() => {})
   );
 

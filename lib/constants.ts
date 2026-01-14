@@ -80,62 +80,53 @@ export const DEFAULT_CONFIG: AppConfig = {
       useTraces: true
     }
   ],
-  judges: [
-    {
-      key: "demo",
-      name: "Demo Judge",
-      endpoint: "mock://demo",
-      description: "Mock judge for testing (simulated evaluations)",
-    },
-    {
-      key: "bedrock",
-      name: "AWS Bedrock",
-      endpoint: "bedrock://",
-      description: "AWS Bedrock LLM judge for real evaluations",
-      modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-      region: "us-west-2",
-    }
-  ],
   models: {
     "demo-model": {
       model_id: "mock://demo-model",
       display_name: "Demo Model",
+      provider: "demo",
       context_window: 200000,
       max_output_tokens: 4096
     },
     "claude-sonnet-4": {
       model_id: "anthropic.claude-sonnet-4-20250514-v1:0",
       display_name: "Claude Sonnet 4",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 4096
     },
     "claude-sonnet-4.5": {
       model_id: "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
       display_name: "Claude Sonnet 4.5",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 4096
     },
     "claude-haiku-4.5": {
       model_id: "anthropic.claude-haiku-4-5-20250514-v1:0",
       display_name: "Claude Haiku 4.5",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 4096
     },
     "claude-sonnet-3.5": {
       model_id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
       display_name: "Claude Sonnet 3.5",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 8192
     },
     "claude-sonnet-3.7": {
       model_id: "anthropic.claude-3-7-sonnet-20250219-v1:0",
       display_name: "Claude Sonnet 3.7",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 8192
     },
     "claude-opus-4.5": {
       model_id: "global.anthropic.claude-opus-4-5-20251101-v1:0",
       display_name: "Claude Opus 4.5",
+      provider: "bedrock",
       context_window: 200000,
       max_output_tokens: 32000
     }

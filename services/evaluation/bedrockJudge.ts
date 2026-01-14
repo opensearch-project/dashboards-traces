@@ -33,20 +33,19 @@ interface ExpectedBehavior {
 /**
  * Real Bedrock Judge implementation via backend proxy with exponential backoff retry
  * Calls the backend API which handles AWS Bedrock communication
+ * The backend routes to the appropriate provider (demo/bedrock/ollama) based on modelId
  * @param trajectory - The agent's execution trajectory
  * @param expected - Expected outcomes or trajectory
  * @param logs - Optional OpenSearch logs
  * @param onProgress - Optional progress callback
- * @param modelId - Optional model ID for judge evaluation (falls back to BEDROCK_MODEL_ID env var)
- * @param judgeKey - Optional judge key to select between Demo Judge and Bedrock Judge
+ * @param modelId - Model ID for judge evaluation (determines provider routing)
  */
 export async function callBedrockJudge(
   trajectory: TrajectoryStep[],
   expected: ExpectedBehavior,
   logs?: OpenSearchLog[],
   onProgress?: (chunk: string) => void,
-  modelId?: string,
-  judgeKey?: string
+  modelId?: string
 ): Promise<JudgeResult> {
   const maxRetries = 10;
   const baseDelay = 1000; // 1 second
@@ -58,7 +57,6 @@ export async function callBedrockJudge(
   console.log('[BedrockJudge] Expected trajectory steps:', expected.expectedTrajectory?.length || 0);
   console.log('[BedrockJudge] Logs provided:', logs?.length || 0);
   console.log('[BedrockJudge] Model:', modelId || '(using default)');
-  console.log('[BedrockJudge] Judge:', judgeKey || '(using default)');
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -77,7 +75,6 @@ export async function callBedrockJudge(
           expectedTrajectory: expected.expectedTrajectory,
           logs,
           modelId,
-          judgeKey,
         }),
       });
 

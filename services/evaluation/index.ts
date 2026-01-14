@@ -81,7 +81,6 @@ export async function runEvaluation(
   agent: AgentConfig,
   modelId: string,
   testCase: TestCase,
-  judgeKey: string,
   onStep: (step: TrajectoryStep) => void,
   onRawEvent?: (event: AGUIEvent) => void
 ): Promise<EvaluationReport> {
@@ -92,7 +91,7 @@ export async function runEvaluation(
   let agentRunId: string | null = null;
 
   console.info('[Eval] Starting evaluation:', testCase.name);
-  debug('Eval', 'Config:', { agent: agent.name, model: modelId, judge: judgeKey, testCase: testCase.id });
+  debug('Eval', 'Config:', { agent: agent.name, model: modelId, testCase: testCase.id });
 
   const evalStartTime = Date.now();
 
@@ -124,16 +123,12 @@ export async function runEvaluation(
     // Traces take ~5 minutes to propagate, so we'll poll for them later
     if (agent.useTraces) {
       console.info('[Eval] TRACE MODE: Skipping logs/judge, will poll for traces');
-      const totalEvalTime = Date.now() - evalStartTime;
-      const judge = DEFAULT_CONFIG.judges.find(j => j.key === judgeKey);
 
       return {
         id: reportId,
         timestamp: new Date().toISOString(),
         agentName: agent.name,
         agentKey: agent.key,
-        judgeName: judge?.name,
-        judgeKey,
         modelName: modelId,
         modelId: modelId,
         testCaseId: testCase.id,
@@ -169,9 +164,11 @@ export async function runEvaluation(
     }
 
     // Call judge
-    // Resolve model key to full Bedrock model ID
-    const judgeModelId = DEFAULT_CONFIG.models[modelId]?.model_id || modelId;
-    console.info('[Eval] Calling judge:', judgeKey, 'with model:', judgeModelId);
+    // Resolve model key to full Bedrock model ID and get provider
+    const modelConfig = DEFAULT_CONFIG.models[modelId];
+    const judgeModelId = modelConfig?.model_id || modelId;
+    const provider = modelConfig?.provider || 'bedrock';
+    console.info('[Eval] Calling judge with model:', judgeModelId, 'provider:', provider);
     const judgeStartTime = Date.now();
     const judgment = await callBedrockJudge(
       fullTrajectory,
@@ -181,8 +178,7 @@ export async function runEvaluation(
       },
       logs,
       (chunk) => debug('Eval', 'Judge progress:', chunk.slice(0, 100)),
-      judgeModelId,
-      judgeKey
+      judgeModelId
     );
     const judgeLatencyMs = Date.now() - judgeStartTime;
     const totalEvalTime = Date.now() - evalStartTime;
@@ -206,15 +202,11 @@ export async function runEvaluation(
       improvementStrategies: judgment.improvementStrategies,
     };
 
-    const judge = DEFAULT_CONFIG.judges.find(j => j.key === judgeKey);
-
     return {
       id: reportId,
       timestamp: new Date().toISOString(),
       agentName: agent.name,
       agentKey: agent.key,
-      judgeName: judge?.name,
-      judgeKey,
       modelName: modelId,
       modelId,
       testCaseId: testCase.id,
@@ -233,15 +225,12 @@ export async function runEvaluation(
     };
   } catch (error) {
     console.error('[Eval] Error:', error);
-    const judgeForError = DEFAULT_CONFIG.judges.find(j => j.key === judgeKey);
 
     return {
       id: reportId,
       timestamp: new Date().toISOString(),
       agentName: agent.name,
       agentKey: agent.key,
-      judgeName: judgeForError?.name,
-      judgeKey,
       modelName: modelId,
       modelId,
       testCaseId: testCase.id,

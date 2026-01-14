@@ -9,6 +9,7 @@
 
 import { Request, Response, Router } from 'express';
 import { evaluateTrajectory, parseBedrockError } from '../services/bedrockService';
+import { DEFAULT_CONFIG } from '../../lib/constants';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ ${expectedOutcomes?.map((outcome, i) => `${i + 1}. "${outcome.substring(0, 50)}.
  */
 router.post('/api/judge', async (req: Request, res: Response) => {
   try {
-    const { trajectory, expectedOutcomes, expectedTrajectory, logs, modelId, judgeKey } = req.body;
+    const { trajectory, expectedOutcomes, expectedTrajectory, logs, modelId } = req.body;
 
     // Validate required fields
     if (!trajectory) {
@@ -79,16 +80,25 @@ router.post('/api/judge', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if Demo Judge selected (judgeKey === 'demo')
-    if (judgeKey === 'demo') {
-      console.log('[JudgeAPI] Demo Judge - returning mock evaluation');
+    // Determine provider from model config
+    // Look up by model key first, then by model_id for full Bedrock model IDs
+    let modelConfig = DEFAULT_CONFIG.models[modelId];
+    if (!modelConfig) {
+      // Try to find by model_id (in case full Bedrock ID was passed)
+      modelConfig = Object.values(DEFAULT_CONFIG.models).find(m => m.model_id === modelId);
+    }
+    const provider = modelConfig?.provider || 'bedrock';
+
+    // Route to appropriate provider
+    if (provider === 'demo') {
+      console.log('[JudgeAPI] Demo provider - returning mock evaluation');
       const mockResult = generateMockEvaluation(trajectory, expectedOutcomes);
       return res.json(mockResult);
     }
 
-    // Call Bedrock service to evaluate trajectory
-    // modelId is optional - falls back to BEDROCK_MODEL_ID env var if not provided
-    console.log('[JudgeAPI] Using Bedrock Judge:', judgeKey || 'bedrock (default)');
+    // For now, only bedrock is supported for real evaluation
+    // Future: add ollama, openai providers here
+    console.log('[JudgeAPI] Using provider:', provider, 'model:', modelId);
     const result = await evaluateTrajectory({
       trajectory,
       expectedOutcomes,
