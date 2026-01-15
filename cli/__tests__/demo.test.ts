@@ -3,101 +3,157 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Tests for Demo mode command
- */
+import { runDemoMode } from '../commands/demo';
 
-import type { CLIConfig } from '../types.js';
+// Mock external dependencies
+jest.mock('chalk', () => {
+  const chalk = {
+    cyan: jest.fn((s: string) => s),
+    gray: jest.fn((s: string) => s),
+    green: jest.fn((s: string) => s),
+    bold: jest.fn((s: string) => s),
+    red: jest.fn((s: string) => s),
+  };
+  // Support chalk.cyan.bold(), chalk.green.bold() patterns
+  (chalk.cyan as any).bold = jest.fn((s: string) => s);
+  (chalk.green as any).bold = jest.fn((s: string) => s);
+  return {
+    __esModule: true,
+    default: chalk,
+  };
+});
 
-describe('Demo mode command', () => {
-  describe('CLIConfig for demo mode', () => {
-    it('should have correct demo mode configuration structure', () => {
-      const demoConfig: CLIConfig = {
-        mode: 'demo',
-        port: 4001,
-        noBrowser: false,
-        agent: {
-          type: 'mock',
-        },
-        judge: {
-          type: 'mock',
-        },
-      };
+jest.mock('ora', () => {
+  const mockSpinner = {
+    start: jest.fn().mockReturnThis(),
+    succeed: jest.fn().mockReturnThis(),
+    fail: jest.fn().mockReturnThis(),
+    text: '',
+  };
+  const oraFn = jest.fn(() => mockSpinner);
+  return {
+    __esModule: true,
+    default: oraFn,
+  };
+});
 
-      expect(demoConfig.mode).toBe('demo');
-      expect(demoConfig.agent.type).toBe('mock');
-      expect(demoConfig.judge.type).toBe('mock');
-      expect(demoConfig.storage).toBeUndefined();
-    });
+jest.mock('open', () => ({
+  __esModule: true,
+  default: jest.fn().mockResolvedValue(undefined),
+}));
 
-    it('should support optional storage configuration', () => {
-      const configWithStorage: CLIConfig = {
-        mode: 'demo',
-        port: 4001,
-        noBrowser: false,
-        storage: {
-          endpoint: 'http://localhost:9200',
-          username: 'admin',
-          password: 'password',
-        },
-        agent: {
-          type: 'mock',
-        },
-        judge: {
-          type: 'mock',
-        },
-      };
+// Mock startServer - jest.fn is hoisted so declare inside the factory
+jest.mock('../utils/startServer', () => ({
+  startServer: jest.fn().mockResolvedValue(undefined),
+}));
 
-      expect(configWithStorage.storage).toBeDefined();
-      expect(configWithStorage.storage?.endpoint).toBe('http://localhost:9200');
-    });
+// Get mocked startServer
+import { startServer } from '../utils/startServer';
+const mockedStartServer = startServer as jest.MockedFunction<typeof startServer>;
 
-    it('should support traces configuration', () => {
-      const configWithTraces: CLIConfig = {
-        mode: 'demo',
-        port: 4001,
-        noBrowser: false,
-        agent: {
-          type: 'mock',
-        },
-        judge: {
-          type: 'mock',
-        },
-        traces: {
-          endpoint: 'http://localhost:9200',
-          index: 'otel-v1-apm-span-*',
-        },
-      };
+describe('Demo Command', () => {
+  let consoleLogSpy: jest.SpyInstance;
+  let consoleErrorSpy: jest.SpyInstance;
+  let processExitSpy: jest.SpyInstance;
+  let originalEnv: NodeJS.ProcessEnv;
 
-      expect(configWithTraces.traces).toBeDefined();
-      expect(configWithTraces.traces?.index).toBe('otel-v1-apm-span-*');
-    });
+  beforeAll(() => {
+    originalEnv = { ...process.env };
   });
 
-  describe('Demo options', () => {
-    interface DemoOptions {
-      port: number;
-      noBrowser: boolean;
-    }
+  beforeEach(() => {
+    jest.clearAllMocks();
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    processExitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {
+      throw new Error('process.exit called');
+    }) as never);
+  });
 
-    it('should accept port and noBrowser options', () => {
-      const options: DemoOptions = {
-        port: 4001,
-        noBrowser: false,
-      };
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+    consoleErrorSpy.mockRestore();
+    processExitSpy.mockRestore();
+    process.env = { ...originalEnv };
+  });
 
-      expect(options.port).toBe(4001);
-      expect(options.noBrowser).toBe(false);
+  describe('runDemoMode', () => {
+    it('should start server in demo mode with default options', async () => {
+      await runDemoMode({ port: 4001, noBrowser: false });
+
+      expect(mockedStartServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'demo',
+          port: 4001,
+          noBrowser: false,
+          agent: { type: 'mock' },
+          judge: { type: 'mock' },
+        })
+      );
     });
 
-    it('should support custom port', () => {
-      const options: DemoOptions = {
-        port: 8080,
-        noBrowser: true,
-      };
+    it('should not open browser when noBrowser is true', async () => {
+      const openModule = require('open');
 
-      expect(options.port).toBe(8080);
-      expect(options.noBrowser).toBe(true);
+      await runDemoMode({ port: 4001, noBrowser: true });
+
+      expect(mockedStartServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          noBrowser: true,
+        })
+      );
+      // open() is called after startServer resolves, but only if noBrowser is false
+      expect(openModule.default).not.toHaveBeenCalled();
+    });
+
+    it('should open browser when noBrowser is false', async () => {
+      const openModule = require('open');
+
+      await runDemoMode({ port: 5000, noBrowser: false });
+
+      expect(openModule.default).toHaveBeenCalledWith('http://localhost:5000');
+    });
+
+    it('should use custom port', async () => {
+      await runDemoMode({ port: 8080, noBrowser: true });
+
+      expect(mockedStartServer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          port: 8080,
+        })
+      );
+    });
+
+    it('should display configuration information', async () => {
+      await runDemoMode({ port: 4001, noBrowser: true });
+
+      // Check that console.log was called with config info
+      expect(consoleLogSpy).toHaveBeenCalled();
+      const logCalls = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(logCalls).toContain('Configuration');
+      expect(logCalls).toContain('Storage');
+      expect(logCalls).toContain('Agent');
+      expect(logCalls).toContain('Judge');
+    });
+
+    it('should handle server startup error', async () => {
+      mockedStartServer.mockRejectedValueOnce(new Error('Server failed'));
+
+      await expect(runDemoMode({ port: 4001, noBrowser: true }))
+        .rejects.toThrow('process.exit called');
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    it('should create demo config with mock agent and judge', async () => {
+      await runDemoMode({ port: 4001, noBrowser: true });
+
+      const configArg = mockedStartServer.mock.calls[0][0];
+      expect(configArg.agent).toEqual({ type: 'mock' });
+      expect(configArg.judge).toEqual({ type: 'mock' });
+      // Storage not configured in demo mode
+      expect(configArg.storage).toBeUndefined();
     });
   });
 });

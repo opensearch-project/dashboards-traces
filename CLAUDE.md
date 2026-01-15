@@ -322,14 +322,55 @@ Tests are located in `tests/` (integration) and `__tests__/` or `*.test.ts` (uni
 - Force exit enabled (prevents hanging on SSE connections)
 - Path alias `@/*` configured for imports
 
+**Coverage thresholds** (enforced by CI):
+- Lines: 90%
+- Statements: 90%
+- Functions: 80%
+- Branches: 80%
+
 **Test structure:**
 - `tests/integration/` - Integration tests requiring real services
-- `tests/unit/` - Unit tests for individual functions
+- `tests/unit/` - Unit tests for individual functions (including license header validation)
 - Service tests in `services/*/(__tests__|*.test.ts)` - Colocated with implementation
 
 **Mocking:**
 - Config mock at `__mocks__/@/lib/config.ts` - auto-loaded by Jest for `@/lib/config` imports
 - Use this pattern for mocking other shared modules
+
+**Running tests:**
+```bash
+npm test                    # Run all tests
+npm run test:unit           # Unit tests only
+npm run test:integration    # Integration tests only
+npm test -- --coverage      # With coverage report
+```
+
+## CI/CD Workflows
+
+GitHub Actions workflows in `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | Push/PR to main | Run tests, coverage, linting |
+| `npm-publish.yml` | Tag push (v*) | Build and publish to npm |
+| `stale.yml` | Scheduled daily | Mark stale issues/PRs |
+| `dco.yml` | PR | Enforce DCO signoff |
+| `add-untriaged.yml` | Issues | Add untriaged label |
+| `backport.yml` | PR merge | Create backport PRs |
+| `changelog.yml` | PR | Validate changelog |
+| `dependency-review.yml` | PR | Review dependency changes |
+| `links-checker.yml` | Push/Scheduled | Check for broken links |
+
+### Running Tests Locally
+
+```bash
+npm test                        # All tests
+npm run test:unit               # Unit tests only
+npm run test:integration        # Integration tests only
+npm test -- --coverage          # Generate coverage report
+```
+
+Coverage reports are generated in `coverage/` directory with HTML report at `coverage/lcov-report/index.html`.
 
 ## OpenSearch Project Compliance
 

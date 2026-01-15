@@ -115,7 +115,7 @@ describe('getKeyAttributes', () => {
     it('extracts tool info', () => {
       const span = createSpan('execute_tool', {
         'gen_ai.tool.name': 'SearchDocs',
-        'gen_ai.tool.call.id': 'call-123',  // OTel semantic convention: gen_ai.tool.call.id
+        'gen_ai.tool.call_id': 'call-123',  // OTel semantic convention: gen_ai.tool.call_id (underscore)
         'tool.mcp_server': 'docs-server',
       });
 
