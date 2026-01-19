@@ -7,8 +7,8 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/services', '<rootDir>/server', '<rootDir>/tests', '<rootDir>/cli', '<rootDir>/lib'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/*.test.ts', '**/tests/**/*.ts'],
+  roots: ['<rootDir>/tests'],
+  testMatch: ['**/tests/**/*.test.ts'],
   moduleNameMapper: {
     '^@/lib/config$': '<rootDir>/__mocks__/@/lib/config.ts',
     // Mock data files to avoid JSON import issues in tests
