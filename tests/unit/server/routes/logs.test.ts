@@ -17,10 +17,11 @@ const mockFetchLogs = fetchLogs as jest.MockedFunction<typeof fetchLogs>;
 const mockFetchLogsLegacy = fetchLogsLegacy as jest.MockedFunction<typeof fetchLogsLegacy>;
 
 // Helper to create mock request/response
-function createMocks(body: any = {}) {
+function createMocks(body: any = {}, headers: Record<string, string> = {}) {
   const req = {
     body,
-  } as Request;
+    headers,
+  } as unknown as Request;
   const res = {
     json: jest.fn().mockReturnThis(),
     status: jest.fn().mockReturnThis(),

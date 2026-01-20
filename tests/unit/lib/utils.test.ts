@@ -186,9 +186,9 @@ describe('lib/utils', () => {
       expect(name).toBe('Claude Sonnet 4.5');
     });
 
-    it('should return display name for claude-haiku-4.5', () => {
-      const name = getModelName('claude-haiku-4.5');
-      expect(name).toBe('Claude Haiku 4.5');
+    it('should return display name for claude-haiku-3.5', () => {
+      const name = getModelName('claude-haiku-3.5');
+      expect(name).toBe('Claude Haiku 3.5');
     });
 
     it('should return modelId for unknown model', () => {
