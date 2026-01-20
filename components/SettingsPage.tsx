@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, Trash2, Database, CheckCircle2, XCircle, Upload, Download, Loader2, Server, Plus, Edit2, X, Save, ExternalLink, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Trash2, Database, CheckCircle2, XCircle, Upload, Download, Loader2, Server, Plus, Edit2, X, Save, ExternalLink, Eye, EyeOff, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { isDebugEnabled, setDebugEnabled } from '@/lib/debug';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -807,6 +807,74 @@ export const SettingsPage: React.FC = () => {
               Clear
             </Button>
           </div>
+
+          {/* Connection Status and Stats */}
+          <div className="border-t pt-4 mt-4">
+            {storageStats && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {storageStats.isConnected ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-opensearch-blue" />
+                        <span className="text-sm text-opensearch-blue">Connected to OpenSearch</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle size={16} className="text-red-400" />
+                        <span className="text-sm text-red-400">Not connected - start backend with `npm run dev:server`</span>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => loadStorageStats()}
+                    disabled={isLoading}
+                    className="text-xs"
+                  >
+                    <RefreshCw size={12} className={`mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Index Stats */}
+                {storageStats.isConnected && (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <div className="text-muted-foreground text-xs uppercase mb-1">Test Cases</div>
+                      <div className="text-lg font-semibold">{storageStats.testCases}</div>
+                    </div>
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <div className="text-muted-foreground text-xs uppercase mb-1">Experiments</div>
+                      <div className="text-lg font-semibold">{storageStats.experiments}</div>
+                    </div>
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <div className="text-muted-foreground text-xs uppercase mb-1">Runs</div>
+                      <div className="text-lg font-semibold">{storageStats.runs}</div>
+                    </div>
+                    <div className="p-3 bg-muted/30 rounded-lg">
+                      <div className="text-muted-foreground text-xs uppercase mb-1">Analytics Records</div>
+                      <div className="text-lg font-semibold">{storageStats.analytics}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isLoading && (
+              <p className="text-sm text-muted-foreground">Loading storage stats...</p>
+            )}
+
+            {!storageStats?.isConnected && !isLoading && (
+              <Alert className="bg-amber-900/20 border-amber-700/30">
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                <AlertDescription className="text-amber-400">
+                  Cannot connect to OpenSearch backend. Make sure the server is running.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -969,100 +1037,6 @@ export const SettingsPage: React.FC = () => {
             >
               <Trash2 size={14} className="mr-1" />
               Clear
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Storage Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database size={18} />
-            OpenSearch Storage
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Evaluation data is stored in OpenSearch. The backend server must be running on port 4001.
-          </p>
-
-          {/* Connection Status */}
-          {storageStats && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                {storageStats.isConnected ? (
-                  <>
-                    <CheckCircle2 size={16} className="text-opensearch-blue" />
-                    <span className="text-sm text-opensearch-blue">Connected to OpenSearch</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle size={16} className="text-red-400" />
-                    <span className="text-sm text-red-400">Not connected - start backend with `npm run dev:judge`</span>
-                  </>
-                )}
-              </div>
-
-              {/* Index Stats */}
-              {storageStats.isConnected && (
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="p-3 bg-muted/30 rounded-lg">
-                    <div className="text-muted-foreground text-xs uppercase mb-1">Test Cases</div>
-                    <div className="text-lg font-semibold">{storageStats.testCases}</div>
-                  </div>
-                  <div className="p-3 bg-muted/30 rounded-lg">
-                    <div className="text-muted-foreground text-xs uppercase mb-1">Experiments</div>
-                    <div className="text-lg font-semibold">{storageStats.experiments}</div>
-                  </div>
-                  <div className="p-3 bg-muted/30 rounded-lg">
-                    <div className="text-muted-foreground text-xs uppercase mb-1">Runs</div>
-                    <div className="text-lg font-semibold">{storageStats.runs}</div>
-                  </div>
-                  <div className="p-3 bg-muted/30 rounded-lg">
-                    <div className="text-muted-foreground text-xs uppercase mb-1">Analytics Records</div>
-                    <div className="text-lg font-semibold">{storageStats.analytics}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isLoading && (
-            <p className="text-sm text-muted-foreground">Loading storage stats...</p>
-          )}
-
-          {!storageStats?.isConnected && !isLoading && (
-            <Alert className="bg-amber-900/20 border-amber-700/30">
-              <AlertTriangle className="h-4 w-4 text-amber-400" />
-              <AlertDescription className="text-amber-400">
-                Cannot connect to OpenSearch backend. Make sure the server is running.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Refresh Stats */}
-          <div className="flex flex-wrap gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadStorageStats()}
-              disabled={isLoading}
-            >
-              Refresh Stats
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (window.confirm('Clear local debug settings?')) {
-                  localStorage.removeItem('debug_enabled');
-                  setDebugMode(false);
-                }
-              }}
-            >
-              <Trash2 size={14} className="mr-1" />
-              Clear Local Settings
             </Button>
           </div>
         </CardContent>
