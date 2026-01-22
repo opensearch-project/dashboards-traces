@@ -103,6 +103,32 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
     Object.values(run.results || {}).some(r => r.status === 'completed')
   );
 
+  // Sort runs by version (descending) then by date (descending) for consistent display
+  const sortedRuns = React.useMemo(() => {
+    if (!benchmark.runs) return [];
+    return [...benchmark.runs].sort((a, b) => {
+      // Sort by version descending first
+      const versionDiff = (b.benchmarkVersion || 1) - (a.benchmarkVersion || 1);
+      if (versionDiff !== 0) return versionDiff;
+      // Then by date descending within same version
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [benchmark.runs]);
+
+  // Determine version boundaries for visual separators
+  const getVersionBoundary = (index: number): boolean => {
+    if (index === 0) return false;
+    const currentVersion = sortedRuns[index]?.benchmarkVersion || 1;
+    const prevVersion = sortedRuns[index - 1]?.benchmarkVersion || 1;
+    return currentVersion !== prevVersion;
+  };
+
+  // Check if benchmark has multiple versions
+  const hasMultipleVersions = React.useMemo(() => {
+    const versions = new Set(sortedRuns.map(r => r.benchmarkVersion || 1));
+    return versions.size > 1;
+  }, [sortedRuns]);
+
   if (!hasAnyResults) {
     return (
       <div className="p-6 h-full flex flex-col">
@@ -159,9 +185,9 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
       <ScrollArea className="flex-1">
         <div className="space-y-6 pr-4">
           {/* Visual Summary Charts */}
-          {benchmark.runs && benchmark.runs.length > 0 && (
+          {sortedRuns.length > 0 && (
             <BenchmarkSummaryCharts
-              runs={benchmark.runs}
+              runs={sortedRuns}
               reports={reports}
             />
           )}
@@ -178,12 +204,24 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                     <thead>
                       <tr className="border-b">
                         <th className="text-left py-2 pr-4"></th>
-                        {benchmark.runs?.map(run => (
-                          <th key={run.id} className="text-center py-2 px-4">
-                            {run.name}
+                        {sortedRuns.map((run, index) => (
+                          <th
+                            key={run.id}
+                            className={`text-center py-2 px-4 ${
+                              getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                            }`}
+                          >
+                            <div className="flex flex-col items-center gap-1">
+                              <span>{run.name}</span>
+                              {hasMultipleVersions && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  v{run.benchmarkVersion || 1}
+                                </Badge>
+                              )}
+                            </div>
                           </th>
                         ))}
-                        {benchmark.runs?.length === 2 && (
+                        {sortedRuns.length === 2 && (
                           <th className="text-center py-2 px-4">Diff</th>
                         )}
                       </tr>
@@ -191,19 +229,24 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                     <tbody>
                       <tr className="border-b">
                         <td className="py-2 pr-4 text-muted-foreground">Avg Accuracy</td>
-                        {benchmark.runs?.map(run => {
+                        {sortedRuns.map((run, index) => {
                           const stats = calculateRunStats(run);
                           return (
-                            <td key={run.id} className="text-center py-2 px-4 font-medium">
+                            <td
+                              key={run.id}
+                              className={`text-center py-2 px-4 font-medium ${
+                                getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                              }`}
+                            >
                               {stats.avgAccuracy}%
                             </td>
                           );
                         })}
-                        {benchmark.runs?.length === 2 && (
+                        {sortedRuns.length === 2 && (
                           <td className="text-center py-2 px-4">
                             {(() => {
-                              const s1 = calculateRunStats(benchmark.runs[0]);
-                              const s2 = calculateRunStats(benchmark.runs[1]);
+                              const s1 = calculateRunStats(sortedRuns[0]);
+                              const s2 = calculateRunStats(sortedRuns[1]);
                               const diff = s2.avgAccuracy - s1.avgAccuracy;
                               return (
                                 <span className={diff > 0 ? 'text-opensearch-blue' : diff < 0 ? 'text-red-400' : ''}>
@@ -216,19 +259,24 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                       </tr>
                       <tr className="border-b">
                         <td className="py-2 pr-4 text-muted-foreground">Pass Rate</td>
-                        {benchmark.runs?.map(run => {
+                        {sortedRuns.map((run, index) => {
                           const stats = calculateRunStats(run);
                           return (
-                            <td key={run.id} className="text-center py-2 px-4 font-medium">
+                            <td
+                              key={run.id}
+                              className={`text-center py-2 px-4 font-medium ${
+                                getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                              }`}
+                            >
                               {stats.passRatePercent}%
                             </td>
                           );
                         })}
-                        {benchmark.runs?.length === 2 && (
+                        {sortedRuns.length === 2 && (
                           <td className="text-center py-2 px-4">
                             {(() => {
-                              const s1 = calculateRunStats(benchmark.runs[0]);
-                              const s2 = calculateRunStats(benchmark.runs[1]);
+                              const s1 = calculateRunStats(sortedRuns[0]);
+                              const s2 = calculateRunStats(sortedRuns[1]);
                               const diff = s2.passRatePercent - s1.passRatePercent;
                               return (
                                 <span className={diff > 0 ? 'text-opensearch-blue' : diff < 0 ? 'text-red-400' : ''}>
@@ -292,9 +340,21 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                         <thead>
                           <tr className="border-b">
                             <th className="text-left py-2 pr-4"></th>
-                            {benchmark.runs?.map(run => (
-                              <th key={run.id} className="text-center py-2 px-4">
-                                {run.name}
+                            {sortedRuns.map((run, index) => (
+                              <th
+                                key={run.id}
+                                className={`text-center py-2 px-4 ${
+                                  getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                                }`}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <span>{run.name}</span>
+                                  {hasMultipleVersions && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      v{run.benchmarkVersion || 1}
+                                    </Badge>
+                                  )}
+                                </div>
                               </th>
                             ))}
                           </tr>
@@ -302,11 +362,16 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                         <tbody>
                           <tr className="border-b">
                             <td className="py-2 pr-4 text-muted-foreground">Status</td>
-                            {benchmark.runs?.map(run => {
+                            {sortedRuns.map((run, index) => {
                               const result = run.results?.[useCaseId];
                               const report = result?.reportId ? reports[result.reportId] : null;
                               return (
-                                <td key={run.id} className="text-center py-2 px-4">
+                                <td
+                                  key={run.id}
+                                  className={`text-center py-2 px-4 ${
+                                    getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                                  }`}
+                                >
                                   {report?.passFailStatus === 'passed' ? (
                                     <span className="inline-flex items-center gap-1 text-opensearch-blue">
                                       <CheckCircle2 size={14} /> PASSED
@@ -326,11 +391,16 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                           </tr>
                           <tr className="border-b">
                             <td className="py-2 pr-4 text-muted-foreground">Accuracy</td>
-                            {benchmark.runs?.map(run => {
+                            {sortedRuns.map((run, index) => {
                               const result = run.results?.[useCaseId];
                               const report = result?.reportId ? reports[result.reportId] : null;
                               return (
-                                <td key={run.id} className="text-center py-2 px-4 font-medium">
+                                <td
+                                  key={run.id}
+                                  className={`text-center py-2 px-4 font-medium ${
+                                    getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                                  }`}
+                                >
                                   {report ? `${report.metrics?.accuracy ?? 0}%` : '-'}
                                 </td>
                               );
@@ -338,11 +408,16 @@ export const BenchmarkResultsView: React.FC<BenchmarkResultsViewProps> = ({
                           </tr>
                           <tr>
                             <td className="py-2 pr-4 text-muted-foreground">Steps</td>
-                            {benchmark.runs?.map(run => {
+                            {sortedRuns.map((run, index) => {
                               const result = run.results?.[useCaseId];
                               const report = result?.reportId ? reports[result.reportId] : null;
                               return (
-                                <td key={run.id} className="text-center py-2 px-4 font-medium">
+                                <td
+                                  key={run.id}
+                                  className={`text-center py-2 px-4 font-medium ${
+                                    getVersionBoundary(index) ? 'border-l-2 border-l-muted-foreground/30' : ''
+                                  }`}
+                                >
                                   {report ? report.trajectory.length : '-'}
                                 </td>
                               );

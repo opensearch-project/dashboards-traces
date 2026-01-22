@@ -43,6 +43,7 @@ export const BenchmarksPage: React.FC = () => {
   const [useCaseStatuses, setUseCaseStatuses] = useState<UseCaseRunStatus[]>([]);
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editingDescriptionValue, setEditingDescriptionValue] = useState('');
+  const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load test cases on mount
@@ -145,11 +146,26 @@ export const BenchmarksPage: React.FC = () => {
   };
 
   const handleCancelRun = async (benchmarkId: string, runId: string) => {
+    // Immediately disable the cancel button and update UI
+    setCancellingRunId(runId);
+
+    // Clear local running state if this was a locally-initiated run
+    if (runningBenchmarkId === benchmarkId) {
+      setRunningBenchmarkId(null);
+      setUseCaseStatuses(prev => prev.map(uc =>
+        uc.status === 'pending' || uc.status === 'running'
+          ? { ...uc, status: 'cancelled' as const }
+          : uc
+      ));
+    }
+
     try {
       await cancelBenchmarkRun(benchmarkId, runId);
-      loadBenchmarks();
+      await loadBenchmarks();
     } catch (error) {
       console.error('Failed to cancel run:', error);
+    } finally {
+      setCancellingRunId(null);
     }
   };
 
@@ -551,14 +567,19 @@ export const BenchmarksPage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          disabled={cancellingRunId === serverRunningRun.id}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCancelRun(bench.id, serverRunningRun.id);
                           }}
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30 disabled:opacity-50"
                         >
-                          <StopCircle size={14} className="mr-1" />
-                          Cancel
+                          {cancellingRunId === serverRunningRun.id ? (
+                            <Loader2 size={14} className="mr-1 animate-spin" />
+                          ) : (
+                            <StopCircle size={14} className="mr-1" />
+                          )}
+                          {cancellingRunId === serverRunningRun.id ? 'Cancelling...' : 'Cancel'}
                         </Button>
                       )}
                       {!isRunning && (

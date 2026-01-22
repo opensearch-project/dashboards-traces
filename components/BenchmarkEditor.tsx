@@ -206,7 +206,19 @@ export const BenchmarkEditor: React.FC<BenchmarkEditorProps> = ({
       });
 
       if (updated) {
-        onSave(updated);
+        // If test cases changed (new version), run the new version with configured runs
+        if (testCasesChanged && onSaveAndRun && runs.length > 0) {
+          const runConfigs: RunConfigForExecution[] = runs.map(run => ({
+            name: run.name,
+            description: run.description,
+            agentKey: run.agentKey,
+            modelId: run.modelId,
+            headers: run.headers,
+          }));
+          onSaveAndRun(updated, runConfigs);
+        } else {
+          onSave(updated);
+        }
       }
     }
   };
@@ -483,13 +495,24 @@ export const BenchmarkEditor: React.FC<BenchmarkEditorProps> = ({
               </Button>
             )}
             {step === 'useCases' && (
-              <Button
-                onClick={() => setStep('runs')}
-                disabled={!canProceedFromUseCases}
-              >
-                Next: Define Runs
-                <ChevronRight size={16} className="ml-1" />
-              </Button>
+              benchmark && !testCasesChanged ? (
+                <Button
+                  onClick={handleSave}
+                  disabled={!canProceedFromUseCases}
+                  className="bg-opensearch-blue hover:bg-blue-600"
+                >
+                  <Check size={16} className="mr-1" />
+                  Save Changes
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setStep('runs')}
+                  disabled={!canProceedFromUseCases}
+                >
+                  Next: Define Runs
+                  <ChevronRight size={16} className="ml-1" />
+                </Button>
+              )
             )}
             {step === 'runs' && (
               <Button
@@ -501,7 +524,7 @@ export const BenchmarkEditor: React.FC<BenchmarkEditorProps> = ({
                 {!benchmark
                   ? 'Create & Run Benchmark'
                   : testCasesChanged
-                    ? `Save as v${benchmark.currentVersion + 1}`
+                    ? `Save & Run v${benchmark.currentVersion + 1}`
                     : 'Save Changes'}
               </Button>
             )}

@@ -780,6 +780,7 @@ router.post('/api/storage/benchmarks/:id/execute', async (req: Request, res: Res
 
 // POST /api/storage/benchmarks/:id/cancel - Cancel an in-progress run
 router.post('/api/storage/benchmarks/:id/cancel', async (req: Request, res: Response) => {
+  const { id } = req.params;
   const { runId } = req.body;
 
   if (!runId) {
@@ -791,7 +792,36 @@ router.post('/api/storage/benchmarks/:id/cancel', async (req: Request, res: Resp
     return res.status(404).json({ error: 'Run not found or already completed' });
   }
 
+  // Set cancellation flag
   cancellationToken.cancel();
+
+  // Immediately update run status in DB to 'cancelled'
+  // This fixes race condition where client refreshes before execute loop updates DB
+  const client = requireStorageClient(req);
+  try {
+    await client.update({
+      index: INDEX,
+      id,
+      body: {
+        script: {
+          source: `
+            for (int i = 0; i < ctx._source.runs.size(); i++) {
+              if (ctx._source.runs[i].id == params.runId) {
+                ctx._source.runs[i].status = 'cancelled';
+                break;
+              }
+            }
+          `,
+          params: { runId },
+        },
+      },
+      refresh: true,
+    });
+  } catch (error: any) {
+    console.error('[StorageAPI] Failed to update cancelled status:', error.message);
+    // Continue anyway - the execute loop will also try to update
+  }
+
   res.json({ cancelled: true, runId });
 });
 
