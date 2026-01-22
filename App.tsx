@@ -8,7 +8,6 @@ import { HashRouter as Router, Routes, Route, Navigate, useParams } from 'react-
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { BenchmarksPage } from './components/BenchmarksPage';
-import { ConfigEditor } from './components/ConfigEditor';
 import { SettingsPage } from './components/SettingsPage';
 import { BenchmarkRunsPage } from './components/BenchmarkRunsPage';
 import { RunDetailsPage } from './components/RunDetailsPage';
@@ -41,7 +40,6 @@ function App() {
           <Route path="/benchmarks/:benchmarkId/runs/:runId" element={<RunDetailsPage />} />
 
           {/* Settings */}
-          <Route path="/config" element={<ConfigEditor />} />
           <Route path="/settings" element={<SettingsPage />} />
 
           {/* Comparison */}
@@ -56,6 +54,7 @@ function App() {
           <Route path="/reports" element={<Navigate to="/benchmarks" replace />} />
           <Route path="/experiments" element={<Navigate to="/benchmarks" replace />} />
           <Route path="/experiments/:experimentId/runs" element={<ExperimentRunsRedirect />} />
+          <Route path="/config" element={<Navigate to="/settings" replace />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
