@@ -180,7 +180,7 @@ const CategorySection = ({
   onDelete,
 }: CategorySectionProps) => {
   return (
-    <Collapsible open={isOpen} onOpenChange={onToggle}>
+    <Collapsible open={isOpen} onOpenChange={onToggle} className="w-full">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
@@ -418,7 +418,7 @@ export const TestCasesPage: React.FC = () => {
   const hasActiveFilters = searchQuery || filterCategory !== 'all' || filterDifficulty !== 'all';
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl w-full mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -491,7 +491,7 @@ export const TestCasesPage: React.FC = () => {
           {filteredTestCases.length === 0 ? (
             <NoResultsState onClearFilters={clearFilters} />
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 w-full">
               {Object.entries(groupedTestCases).map(([category, tcs]) => (
                 <CategorySection
                   key={category}
