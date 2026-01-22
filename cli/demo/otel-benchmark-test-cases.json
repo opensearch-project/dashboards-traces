@@ -1,0 +1,93 @@
+[
+  {
+    "name": "Checkout Service OOMKilled",
+    "description": "Investigate checkout service pod restarts due to OOMKilled - tests K8s diagnostics capability",
+    "category": "RCA",
+    "difficulty": "Easy",
+    "initialPrompt": "The checkoutservice in our OTEL demo app keeps restarting. Users report intermittent checkout failures. Pod status shows \"OOMKilled\" in previous container state. Investigate why the checkout service is being killed and recommend a fix.",
+    "context": [
+      {
+        "description": "System Architecture",
+        "value": "OTEL Demo microservices (checkout flow):\n- frontend → cartservice → checkoutservice → paymentservice\n- checkoutservice also calls: shippingservice, emailservice, currencyservice\n- All services deployed on Kubernetes with resource limits\n- OpenTelemetry instrumentation on all services"
+      },
+      {
+        "description": "Kubernetes Status",
+        "value": "Pod status for checkoutservice:\n- Restarts: 8 in the last hour\n- Last termination reason: OOMKilled\n- Memory limit: 128Mi\n- Current memory usage before crash: 127Mi\n- Container exit code: 137"
+      },
+      {
+        "description": "Recent Changes",
+        "value": "Recent changes:\n- checkoutservice: v1.4.0 deployed yesterday (added order history feature)\n- New feature loads last 100 orders into memory for \"quick reorder\"\n- No changes to resource limits"
+      }
+    ],
+    "expectedOutcomes": [
+      "Identify OOMKilled as the termination reason from pod events",
+      "Correlate memory usage (127Mi) with limit (128Mi) showing exhaustion",
+      "Link memory issue to recent deployment adding order history feature",
+      "Recommend: increase memory limit, implement pagination, or use streaming"
+    ]
+  },
+  {
+    "name": "Frontend High Latency - Product Catalog",
+    "description": "Investigate 10x latency increase on product listing page - tests distributed trace analysis",
+    "category": "RCA",
+    "difficulty": "Medium",
+    "initialPrompt": "The OTEL demo frontend is showing 10x increased latency when loading the product listing page. P95 latency increased from 300ms to 3000ms. The issue started approximately 2 hours ago. Use distributed traces to find the bottleneck.",
+    "context": [
+      {
+        "description": "System Architecture",
+        "value": "Product listing request flow:\n- frontend → productcatalogservice (gRPC)\n- frontend → recommendationservice → productcatalogservice\n- frontend → adservice\n- All services emit OTEL spans to otel-collector → OpenSearch"
+      },
+      {
+        "description": "Trace Analysis",
+        "value": "Sample trace breakdown (total: 2850ms):\n- frontend: 50ms (self time)\n- productcatalogservice.ListProducts: 2200ms (normally 80ms)\n- recommendationservice.GetRecommendations: 450ms (normally 100ms)\n- adservice.GetAds: 150ms (normal)\n- Database spans show productcatalogservice queries taking 2000ms+"
+      },
+      {
+        "description": "Recent Changes",
+        "value": "Recent changes and events:\n- productcatalogservice: No code changes in 2 weeks\n- Database: Index maintenance job ran 2.5 hours ago\n- Product catalog size: Grew from 1000 to 50000 products (data import)"
+      },
+      {
+        "description": "Database Metrics",
+        "value": "PostgreSQL metrics for product catalog DB:\n- Query: \"SELECT * FROM products WHERE category = $1 ORDER BY name\"\n- Execution plan: Sequential scan (no index on category column)\n- Rows scanned: 50000 (full table scan)\n- Before import: Index scan, 1000 rows"
+      }
+    ],
+    "expectedOutcomes": [
+      "Identify productcatalogservice as the latency bottleneck from trace spans",
+      "Pinpoint database query as root cause (2000ms+ query time)",
+      "Correlate with product data import (1000 → 50000 products)",
+      "Identify missing index on category column causing full table scan",
+      "Recommend: Add index on category column, implement pagination"
+    ]
+  },
+  {
+    "name": "Payment Gateway Timeout Cascade",
+    "description": "Investigate cascading failures from payment service - tests resilience pattern understanding",
+    "category": "RCA",
+    "difficulty": "Hard",
+    "initialPrompt": "Multiple services in the OTEL demo are returning errors. The error rate dashboard shows:\n- paymentservice: 100% error rate\n- checkoutservice: 85% error rate\n- frontend: 40% error rate\nThis started 30 minutes ago. Investigate the cascade and identify the root cause and why circuit breakers didn't prevent the cascade.",
+    "context": [
+      {
+        "description": "System Architecture",
+        "value": "Payment flow and dependencies:\n- frontend → checkoutservice → paymentservice → external-payment-gateway (Stripe mock)\n- paymentservice timeout: 30 seconds\n- checkoutservice timeout for payment: 35 seconds\n- frontend timeout: 60 seconds\n- All services have circuit breaker config but may not be properly tuned"
+      },
+      {
+        "description": "Error Timeline",
+        "value": "Failure timeline:\n- T+0: external-payment-gateway starts responding slowly (45s)\n- T+5min: paymentservice errors spike to 100% (timeout exceeded)\n- T+8min: checkoutservice errors at 85% (waiting on payment)\n- T+12min: frontend errors at 40% (checkout requests backing up)\n- Thread pools exhausted across services"
+      },
+      {
+        "description": "Circuit Breaker Config",
+        "value": "Circuit breaker configuration (paymentservice):\n- Failure threshold: 5 failures in 60 seconds\n- Actual failures: 4 per minute (just under threshold)\n- Timeout: 30s (allows slow failures to consume resources)\n- Issue: Slow responses (45s) don't count as failures, they timeout\n- Half-open: 3 requests (but all timeout, resetting counter)"
+      },
+      {
+        "description": "Trace Evidence",
+        "value": "Sample failing trace:\n- frontend.PlaceOrder: 62000ms → TIMEOUT\n  - checkoutservice.PlaceOrder: 38000ms → DEADLINE_EXCEEDED\n    - paymentservice.Charge: 32000ms → TIMEOUT\n      - external-payment-gateway.process: 45000ms → Never completed\n- Trace shows request waited full timeout at each hop"
+      }
+    ],
+    "expectedOutcomes": [
+      "Trace failure cascade: external-gateway → payment → checkout → frontend",
+      "Identify root cause: external payment gateway latency (45s responses)",
+      "Explain why circuit breaker failed: slow responses under failure threshold",
+      "Identify timeout misconfiguration: 30s timeout allows resource exhaustion",
+      "Recommend: lower timeouts, add slow-call circuit breaker, configure bulkhead"
+    ]
+  }
+]

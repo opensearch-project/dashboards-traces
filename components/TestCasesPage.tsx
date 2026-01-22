@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -16,8 +16,10 @@ import {
   FileText,
   Filter,
   Calendar,
+  Upload,
 } from 'lucide-react';
-import { asyncTestCaseStorage, asyncRunStorage } from '@/services/storage';
+import { asyncTestCaseStorage, asyncRunStorage, asyncBenchmarkStorage } from '@/services/storage';
+import { validateTestCasesArrayJson } from '@/lib/testCaseValidation';
 import { TestCase } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -283,6 +285,15 @@ export const TestCasesPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<TestCase | null>(null);
   const [runningTestCase, setRunningTestCase] = useState<TestCase | null>(null);
 
+  // Import state
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    benchmarkId?: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Load data
   const loadData = async () => {
     setIsLoading(true);
@@ -417,6 +428,79 @@ export const TestCasesPage: React.FC = () => {
 
   const hasActiveFilters = searchQuery || filterCategory !== 'all' || filterDifficulty !== 'all';
 
+  // Import handler
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const validation = validateTestCasesArrayJson(json);
+
+      if (!validation.valid || !validation.data) {
+        setImportResult({
+          type: 'error',
+          message: `Validation failed: ${validation.errors[0]?.message || 'Invalid format'}`,
+        });
+        return;
+      }
+
+      // Step 1: Create test cases
+      const result = await asyncTestCaseStorage.bulkCreate(validation.data);
+
+      if (result.created === 0) {
+        setImportResult({
+          type: 'error',
+          message: 'No test cases were created. They may already exist.',
+        });
+        return;
+      }
+
+      // Step 2: Get IDs of created test cases (fetch latest to get generated IDs)
+      const allTestCases = await asyncTestCaseStorage.getAll();
+      const createdTestCaseIds = allTestCases
+        .filter((tc) => validation.data!.some((d) => d.name === tc.name))
+        .map((tc) => tc.id);
+
+      // Step 3: Auto-create benchmark with imported test cases
+      const benchmarkName = file.name.replace(/\.json$/i, '') || 'Imported Benchmark';
+      const benchmark = await asyncBenchmarkStorage.create({
+        name: benchmarkName,
+        description: `Auto-created from import of ${result.created} test case(s)`,
+        currentVersion: 1,
+        versions: [
+          {
+            version: 1,
+            createdAt: new Date().toISOString(),
+            testCaseIds: createdTestCaseIds,
+          },
+        ],
+        testCaseIds: createdTestCaseIds,
+        runs: [],
+      });
+
+      setImportResult({
+        type: 'success',
+        message: `Imported ${result.created} test case(s) and created benchmark "${benchmark.name}"`,
+        benchmarkId: benchmark.id,
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Failed to import test cases:', error);
+      setImportResult({
+        type: 'error',
+        message: `Import failed: ${(error as Error).message}`,
+      });
+    } finally {
+      setIsImporting(false);
+      event.target.value = ''; // Reset for re-upload
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -427,10 +511,27 @@ export const TestCasesPage: React.FC = () => {
             Manage your test case library ({testCases.length} total)
           </p>
         </div>
-        <Button onClick={handleCreateNew}>
-          <Plus size={16} className="mr-2" />
-          New Test Case
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+          >
+            <Upload size={16} className="mr-2" />
+            {isImporting ? 'Importing...' : 'Import JSON'}
+          </Button>
+          <Button onClick={handleCreateNew}>
+            <Plus size={16} className="mr-2" />
+            New Test Case
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -549,6 +650,34 @@ export const TestCasesPage: React.FC = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Import Result Dialog */}
+      <AlertDialog open={!!importResult} onOpenChange={() => setImportResult(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {importResult?.type === 'success' ? 'Import Successful' : 'Import Failed'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{importResult?.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {importResult?.type === 'success' && importResult.benchmarkId && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigate(`/benchmarks/${importResult.benchmarkId}`);
+                  setImportResult(null);
+                }}
+              >
+                Go to Benchmark
+              </Button>
+            )}
+            <AlertDialogAction onClick={() => setImportResult(null)}>
+              {importResult?.type === 'success' ? 'Stay Here' : 'OK'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
