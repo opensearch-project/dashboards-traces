@@ -2,7 +2,8 @@
   {
     "name": "OTEL Demo: Checkout Service Memory Issues",
     "description": "Investigate checkoutservice pod restarts in the OTEL demo application",
-    "labels": ["category:RCA", "difficulty:Easy"],
+    "category": "RCA",
+    "difficulty": "Easy",
     "initialPrompt": "The checkoutservice in our OTEL demo application keeps restarting. Users are experiencing intermittent checkout failures. Can you investigate the traces in the otel-v1-apm-span-* index to find what's causing the service to fail?",
     "context": [
       {
@@ -29,7 +30,8 @@
   {
     "name": "OTEL Demo: Product Catalog Latency Spike",
     "description": "Investigate high latency in productcatalogservice affecting frontend performance",
-    "labels": ["category:RCA", "difficulty:Medium"],
+    "category": "RCA",
+    "difficulty": "Medium",
     "initialPrompt": "The OTEL demo frontend is loading slowly. Users report the product listing page takes over 3 seconds to load. Use the traces in OpenSearch to identify the bottleneck in the request flow from frontend to productcatalogservice.",
     "context": [
       {
@@ -56,7 +58,8 @@
   {
     "name": "OTEL Demo: Payment Service Cascade Failure",
     "description": "Investigate cascading failures from paymentservice affecting checkout flow",
-    "labels": ["category:RCA", "difficulty:Hard"],
+    "category": "RCA",
+    "difficulty": "Hard",
     "initialPrompt": "Multiple services in the OTEL demo are showing errors. The error rate for paymentservice is 100%, checkoutservice is 85%, and frontend checkout requests are failing 40% of the time. This started 30 minutes ago. Analyze the distributed traces in OpenSearch to trace the failure cascade and identify the root cause.",
     "context": [
       {

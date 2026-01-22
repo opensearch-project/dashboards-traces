@@ -218,6 +218,43 @@ Express server on port 4001 provides:
 - `OPENSEARCH_LOGS_*`: Logs cluster for agent execution logs (features degrade if missing)
 - `MLCOMMONS_HEADER_*`: Headers for ML-Commons agent data source access (see [docs/ML-COMMONS-SETUP.md](docs/ML-COMMONS-SETUP.md))
 
+### Data Model
+
+#### Entity Identification
+
+| Entity | System ID Format | Natural Key | Unique? | OpenSearch Doc ID |
+|--------|-----------------|-------------|---------|-------------------|
+| Test Case | `tc-{timestamp}-{random}` | `name` | ID only | `{id}-v{version}` |
+| Benchmark | `bench-{timestamp}-{random}` | `name` | ID only | `{id}` |
+| Run | `run-{timestamp}-{random}` | `name` | ID only | Embedded in benchmark |
+| TestCaseRun | `report-{timestamp}-{random}` | N/A | ID only | `{id}` |
+
+**Note:** Names are NOT enforced as unique. Multiple entities can have the same name.
+
+#### Versioning Strategy
+
+| Entity | Strategy | Triggers New Version | Document Storage |
+|--------|----------|---------------------|------------------|
+| Test Case | Immutable versions | Any content change | New doc: `{id}-v{n+1}` |
+| Benchmark | Selective | testCaseIds change only | Single doc, versions array |
+| Run | Not versioned | N/A | Embedded in benchmark |
+
+#### Key Relationships
+
+- **Benchmark → Test Cases**: `benchmark.testCaseIds[]` references `testCase.id`
+- **Benchmark → Runs**: `benchmark.runs[]` embeds run configurations
+- **Run → TestCaseRun**: `run.results[testCaseId].reportId` references `testCaseRun.id`
+- **TestCaseRun → Benchmark**: `testCaseRun.experimentId` references `benchmark.id`
+
+#### OpenSearch Indexes
+
+| Index | Entity | Document ID Format |
+|-------|--------|-------------------|
+| `evals_test_cases` | Test Case | `{testCaseId}-v{version}` |
+| `evals_benchmarks` | Benchmark | `{benchmarkId}` |
+| `evals_runs` | TestCaseRun | `{reportId}` |
+| `evals_analytics` | Analytics | `analytics-{runId}` |
+
 ## Coding Style Conventions
 
 ### Backend Patterns

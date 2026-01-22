@@ -473,8 +473,8 @@ export const TestCasesPage: React.FC = () => {
         runs: [],
       });
 
-      // Navigate directly to the benchmark page
-      navigate(`/benchmarks/${benchmark.id}`);
+      // Navigate directly to the benchmark runs page
+      navigate(`/benchmarks/${benchmark.id}/runs`);
     } catch (error) {
       console.error('Failed to import test cases:', error);
       setImportError(`Import failed: ${(error as Error).message}`);

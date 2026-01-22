@@ -14,7 +14,7 @@ import {
   TestTube,
 } from "lucide-react";
 import OpenSearchLogo from "@/assets/opensearch-logo.svg";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useServerStatus } from "@/hooks/useServerStatus";
 import {
   Sidebar,
@@ -35,7 +35,6 @@ import {
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -55,12 +54,18 @@ const evalsSubItems = [
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { status, version, loading } = useServerStatus();
 
   // Determine if evals section should be open based on current path
   const isEvalsPath = location.pathname.startsWith("/test-cases") ||
                       location.pathname.startsWith("/benchmarks");
   const [evalsOpen, setEvalsOpen] = useState(isEvalsPath);
+
+  const handleEvalsClick = () => {
+    setEvalsOpen(true);
+    navigate("/benchmarks");
+  };
 
   return (
     <SidebarProvider className="h-screen overflow-hidden">
@@ -105,16 +110,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   className="group/collapsible"
                 >
                   <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        tooltip="Evals"
-                        isActive={isEvalsPath}
-                      >
-                        <TestTube />
-                        <span>Evals</span>
-                        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
+                    <SidebarMenuButton
+                      tooltip="Evals"
+                      isActive={isEvalsPath}
+                      onClick={handleEvalsClick}
+                    >
+                      <TestTube />
+                      <span>Evals</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {evalsSubItems.map((item) => (
