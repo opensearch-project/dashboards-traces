@@ -200,6 +200,7 @@ All commits require DCO signoff and all PRs must pass CI checks (tests, coverage
 ## Documentation
 
 - [Getting Started](./GETTING_STARTED.md) - Installation, demo mode, and usage walkthrough
+- [Developer Guide](./docs/DEVELOPER_GUIDE.md) - In-depth architecture, API reference, and development workflows
 - [ML-Commons Agent Setup](./docs/ML-COMMONS-SETUP.md) - Configure ML-Commons agent
-- [Development Guide](./CLAUDE.md) - Architecture and coding conventions
+- [Quick Reference](./CLAUDE.md) - Coding conventions and project structure
 - [AG-UI Protocol](https://docs.ag-ui.com/sdk/js/core/types#runagentinput)
