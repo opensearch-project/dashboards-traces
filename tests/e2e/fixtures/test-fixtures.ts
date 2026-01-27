@@ -42,14 +42,13 @@ export async function waitForAppReady(page: Page): Promise<void> {
 // Helper to navigate using sidebar
 export async function navigateToPage(
   page: Page,
-  pageName: 'Dashboard' | 'Test Cases' | 'Benchmarks' | 'Live Traces' | 'Agents & Models' | 'Settings'
+  pageName: 'Overview' | 'Test Cases' | 'Benchmarks' | 'Agent Traces' | 'Settings'
 ): Promise<void> {
   const sidebarLinks: Record<string, string> = {
-    'Dashboard': 'nav-dashboard',
+    'Overview': 'nav-overview',
     'Test Cases': 'nav-test-cases',
     'Benchmarks': 'nav-benchmarks',
-    'Live Traces': 'nav-live-traces',
-    'Agents & Models': 'nav-agents-&-models',
+    'Agent Traces': 'nav-traces',
     'Settings': 'nav-settings',
   };
 

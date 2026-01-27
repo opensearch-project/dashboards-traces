@@ -17,18 +17,17 @@ test.describe('Navigation', () => {
     await expect(sidebar).toBeVisible();
 
     // Check all main navigation links are present
-    await expect(page.locator('[data-testid="nav-dashboard"]')).toBeVisible();
+    await expect(page.locator('[data-testid="nav-overview"]')).toBeVisible();
+    await expect(page.locator('[data-testid="nav-traces"]')).toBeVisible();
     await expect(page.locator('[data-testid="nav-test-cases"]')).toBeVisible();
     await expect(page.locator('[data-testid="nav-benchmarks"]')).toBeVisible();
-    await expect(page.locator('[data-testid="nav-live-traces"]')).toBeVisible();
-    await expect(page.locator('[data-testid="nav-agents-&-models"]')).toBeVisible();
     await expect(page.locator('[data-testid="nav-settings"]')).toBeVisible();
   });
 
   test('should navigate to Dashboard page', async ({ page }) => {
-    await page.click('[data-testid="nav-dashboard"]');
+    await page.click('[data-testid="nav-overview"]');
     await expect(page.locator('[data-testid="dashboard-page"]')).toBeVisible();
-    await expect(page.locator('[data-testid="dashboard-title"]')).toHaveText('Agent Evaluation Dashboard');
+    await expect(page.locator('[data-testid="dashboard-title"]')).toHaveText('Leaderboard Overview');
   });
 
   test('should navigate to Test Cases page', async ({ page }) => {
@@ -49,16 +48,10 @@ test.describe('Navigation', () => {
     await expect(page.locator('[data-testid="settings-title"]')).toHaveText('Settings');
   });
 
-  test('should navigate to Live Traces page', async ({ page }) => {
-    await page.click('[data-testid="nav-live-traces"]');
+  test('should navigate to Agent Traces page', async ({ page }) => {
+    await page.click('[data-testid="nav-traces"]');
     // Check that the URL changed to traces
-    await expect(page).toHaveURL(/#\/traces/);
-  });
-
-  test('should navigate to Agents & Models page', async ({ page }) => {
-    await page.click('[data-testid="nav-agents-&-models"]');
-    // Check that the URL changed to config
-    await expect(page).toHaveURL(/#\/config/);
+    await expect(page).toHaveURL(/.*#\/traces/);
   });
 
   test('should show server status in sidebar footer', async ({ page }) => {
