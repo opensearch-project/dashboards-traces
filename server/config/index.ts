@@ -14,7 +14,7 @@ import { StorageConfig } from '@/types';
 // Server Configuration
 // ============================================================================
 
-export const PORT = parseInt(process.env.PORT || process.env.BACKEND_PORT || process.env.VITE_BACKEND_PORT || '4005', 10);
+export const PORT = parseInt(process.env.PORT || process.env.BACKEND_PORT || process.env.VITE_BACKEND_PORT || '4001', 10);
 
 // ============================================================================
 // AWS Configuration

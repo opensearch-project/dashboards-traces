@@ -41,7 +41,7 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Updated judge routes to use demo-model provider detection
 
 ### Fixed
-- Fixed CI integration tests by setting correct PORT environment variable ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
+- Fixed server default port to 4001 to match documentation ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Fixed Span interface to make attributes optional, matching actual API data ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Fixed broken documentation links in GETTING_STARTED.md
 - Fixed high severity ReDoS vulnerability in @modelcontextprotocol/sdk

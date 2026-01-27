@@ -16,12 +16,12 @@ describe('server/config', () => {
   });
 
   describe('PORT', () => {
-    it('should default to 4005', async () => {
+    it('should default to 4001', async () => {
       delete process.env.PORT;
       delete process.env.BACKEND_PORT;
       delete process.env.VITE_BACKEND_PORT;
       const config = await import('@/server/config');
-      expect(config.PORT).toBe(4005);
+      expect(config.PORT).toBe(4001);
     });
 
     it('should use PORT when set', async () => {
