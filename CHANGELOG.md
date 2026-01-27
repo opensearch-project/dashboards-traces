@@ -10,6 +10,11 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- Agent Traces page with table-based trace view for browsing and filtering traces ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
+- LatencyHistogram component for visualizing trace duration distribution ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
+- SpanInputOutput component displaying span I/O per OTEL semantic conventions ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
+- TraceFlyoutContent for detailed trace inspection with dedicated tabs ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
+- Unit tests for LatencyHistogram, SpanInputOutput, and TraceFlyoutContent components ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - AgentTrendChart and MetricsTable components for dashboard visualization ([#23](https://github.com/opensearch-project/dashboards-traces/pull/23))
 - Benchmark run cancellation hook with state management ([#23](https://github.com/opensearch-project/dashboards-traces/pull/23))
 - js-yaml dependency for YAML support ([#23](https://github.com/opensearch-project/dashboards-traces/pull/23))
@@ -25,6 +30,7 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Enhanced storage route tests with additional coverage
 
 ### Changed
+- Updated navigation to distinguish "Agent Traces" (table view) from "Live Traces" (real-time) ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Enhanced CORS middleware setup for better cross-origin support ([#20](https://github.com/opensearch-project/dashboards-traces/pull/20))
 - Refactored routing and layout structure for improved navigation ([#20](https://github.com/opensearch-project/dashboards-traces/pull/20))
 - Renamed Experiment to Benchmark throughout the codebase for clearer terminology
@@ -35,6 +41,7 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Updated judge routes to use demo-model provider detection
 
 ### Fixed
+- Fixed Span interface to make attributes optional, matching actual API data ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Fixed broken documentation links in GETTING_STARTED.md
 - Fixed high severity ReDoS vulnerability in @modelcontextprotocol/sdk
 
