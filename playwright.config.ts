@@ -28,7 +28,10 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:4000',
+    /* In CI, use production server on 4001; in local dev, use Vite dev server on 4000 */
+    baseURL: process.env.CI
+      ? 'http://localhost:4001'
+      : (process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:4000'),
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -49,20 +52,28 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: [
-    {
-      command: 'npm run dev:server',
-      url: 'http://localhost:4001/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120000,
-    },
-    {
-      command: 'npm run dev',
-      url: 'http://localhost:4000',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120000,
-    },
-  ],
+  /* In CI, use single production server; in local dev, use separate dev servers */
+  webServer: process.env.CI
+    ? {
+        command: 'npm run server',
+        url: 'http://localhost:4001',
+        reuseExistingServer: false,
+        timeout: 120000,
+      }
+    : [
+        {
+          command: 'npm run dev:server',
+          url: 'http://localhost:4001/health',
+          reuseExistingServer: true,
+          timeout: 120000,
+        },
+        {
+          command: 'npm run dev',
+          url: 'http://localhost:4000',
+          reuseExistingServer: true,
+          timeout: 120000,
+        },
+      ],
 
   /* Test timeout */
   timeout: 60000,

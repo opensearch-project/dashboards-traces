@@ -148,6 +148,83 @@ In development, the Vite dev server (4000) proxies `/api` requests to the backen
 
 ---
 
+## Testing
+
+AgentEval uses a comprehensive test suite with three layers:
+
+### Test Types
+
+| Type | Location | Command | Description |
+|------|----------|---------|-------------|
+| **Unit** | `tests/unit/` | `npm run test:unit` | Fast, isolated function tests |
+| **Integration** | `tests/integration/` | `npm run test:integration` | Tests with real backend server |
+| **E2E** | `tests/e2e/` | `npm run test:e2e` | Browser-based UI tests with Playwright |
+
+### Running Tests
+
+```bash
+# All tests
+npm test                        # Unit + integration
+npm run test:all                # Unit + integration + E2E
+
+# By type
+npm run test:unit               # Unit tests only
+npm run test:integration        # Integration tests (starts server)
+npm run test:e2e                # E2E tests (starts servers)
+npm run test:e2e:ui             # E2E with Playwright UI for debugging
+
+# With coverage
+npm run test:unit -- --coverage
+
+# Specific file
+npm test -- path/to/file.test.ts
+npx playwright test tests/e2e/dashboard.spec.ts
+```
+
+### E2E Testing with Playwright
+
+E2E tests use [Playwright](https://playwright.dev/) to test the UI in a real browser.
+
+```bash
+# First time: install browsers
+npx playwright install
+
+# Run all E2E tests
+npm run test:e2e
+
+# Interactive UI mode (recommended for debugging)
+npm run test:e2e:ui
+
+# View test report
+npm run test:e2e:report
+```
+
+**Writing E2E Tests:**
+- Place tests in `tests/e2e/*.spec.ts`
+- Use `data-testid` attributes for reliable selectors
+- Handle empty states gracefully (check if data exists before asserting)
+- See existing tests for patterns
+
+### CI Pipeline
+
+All PRs must pass these CI checks:
+
+| Job | What it checks |
+|-----|----------------|
+| `build-and-test` | Build + unit tests + 90% coverage |
+| `lint-and-typecheck` | TypeScript compilation |
+| `license-check` | SPDX headers on all source files |
+| `integration-tests` | Backend integration tests |
+| `e2e-tests` | Playwright browser tests |
+| `security-scan` | npm audit for vulnerabilities |
+
+### Coverage Requirements
+
+- **90% line coverage** required for unit tests
+- Coverage report uploaded as artifact on each PR
+
+---
+
 ## Agent Setup
 
 Agent Health supports multiple agent types:
