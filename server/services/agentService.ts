@@ -173,25 +173,24 @@ export async function proxyAgentRequest(
   console.log('[AgentProxy] Custom headers:', JSON.stringify(customHeaders));
   console.log('[AgentProxy] Payload preview:', JSON.stringify(payload).substring(0, 300) + '...');
 
-  // Set SSE headers for streaming response
-  setSSEHeaders(res);
-
-  // Check if Demo Agent selected (mock:// endpoint)
+  // Check if Demo Agent selected
   if (endpoint.startsWith('mock://')) {
-    console.log('[AgentProxy] Demo Agent - returning mock response');
+    setSSEHeaders(res);
     await streamMockAgentResponse(payload, res);
     res.end();
     return;
   }
 
-  console.log('[AgentProxy] Calling real endpoint:', endpoint);
+  // Detect streaming vs non-streaming
+  const isStreaming = endpoint.endsWith('/stream');
+  console.log('[AgentProxy] Mode:', isStreaming ? 'STREAMING' : 'NON-STREAMING');
 
   // Make request to agent endpoint
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
+      ...(isStreaming && { 'Accept': 'text/event-stream' }),
       ...customHeaders,
     },
     body: JSON.stringify(payload),
@@ -199,17 +198,27 @@ export async function proxyAgentRequest(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[AgentProxy] Agent returned error:', response.status, errorText);
-
-    // Send a proper AG UI RUN_ERROR event so frontend can handle it
-    sendErrorEvent(res, `Agent error: ${response.status} - ${errorText}`);
+    console.error('[AgentProxy] Agent error:', response.status, errorText);
+    
+    if (isStreaming) {
+      setSSEHeaders(res);
+      sendErrorEvent(res, `Agent error: ${response.status} - ${errorText}`);
+    } else {
+      res.status(response.status).json({ error: errorText });
+    }
     return;
   }
 
-  console.log('[AgentProxy] Connected to agent, streaming response...');
-  console.log('[AgentProxy] Response headers:', Object.fromEntries(response.headers.entries()));
+  // Non-streaming: return JSON directly
+  if (!isStreaming) {
+    const jsonResponse = await response.json();
+    console.log('[AgentProxy] Response:', JSON.stringify(jsonResponse).substring(0, 500));
+    res.json(jsonResponse);
+    return;
+  }
 
-  // Stream the response back to client
+  // Streaming
+  setSSEHeaders(res);
   const reader = response.body?.getReader();
   if (!reader) {
     console.error('[AgentProxy] No response body reader available');

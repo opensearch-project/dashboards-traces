@@ -87,6 +87,11 @@ export interface OpenSearchConfig {
 export function transformSpan(source: OpenSearchSpanSource): NormalizedSpan {
   const attributes: Record<string, any> = {};
 
+  // Extract attributes from source.attributes object directly
+  if (source.attributes && typeof source.attributes === 'object') {
+    Object.assign(attributes, source.attributes);
+  }
+
   // Extract span.attributes.* fields (convert @ to . notation)
   for (const [key, value] of Object.entries(source)) {
     if (key.startsWith('span.attributes.')) {
@@ -116,12 +121,12 @@ export function transformSpan(source: OpenSearchSpanSource): NormalizedSpan {
   }
 
   return {
-    traceId: source.traceId,
-    spanId: source.spanId,
-    parentSpanId: source.parentSpanId,
+    traceId: source.trace_id,
+    spanId: source.span_id,
+    parentSpanId: source.parent_span_id,
     name: source.name,
-    startTime: source.startTime,
-    endTime: source.endTime,
+    startTime: source.start_time,
+    endTime: source.end_time,
     duration: source.durationInNanos ? source.durationInNanos / 1000000 : null,
     status: source['status.code'] === 2 ? 'ERROR' : (source['status.code'] === 1 ? 'OK' : 'UNSET'),
     attributes,
@@ -157,13 +162,56 @@ export async function fetchTraces(
   const must: any[] = [];
 
   if (traceId) {
-    must.push({ term: { 'traceId': traceId } });
+    must.push({ term: { 'trace_id': traceId } });
   }
 
   if (runIds && runIds.length > 0) {
-    must.push({
-      terms: { 'span.attributes.gen_ai@request@id': runIds }
-    });
+    // Query for both streaming (gen_ai.request.id) and non-streaming (gen_ai.conversation.id)
+    const runIdQuery = {
+      bool: {
+        should: [
+          { terms: { 'attributes.gen_ai.request.id.keyword': runIds } },
+          { terms: { 'attributes.gen_ai.conversation.id.keyword': runIds } }
+        ],
+        minimum_should_match: 1
+      }
+    };
+    
+    // Query to get trace IDs first
+    const traceIdResponse = await fetch(
+      `${endpoint}/${indexPattern}/_search`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+        },
+        body: JSON.stringify({
+          size: 100,
+          _source: ['trace_id'],
+          query: { bool: { must: [runIdQuery] } }
+        })
+      }
+    );
+    
+    if (traceIdResponse.ok) {
+      const traceData = await traceIdResponse.json();
+      const traceIds = [...new Set(traceData.hits?.hits?.map((hit: any) => hit._source?.trace_id).filter(Boolean))];
+      
+      if (traceIds.length > 0) {
+        console.log('[TracesService] Found trace IDs:', traceIds);
+        // Query by trace IDs to get all spans including parents
+        must.push({
+          terms: { 'trace_id': traceIds }
+        });
+      } else {
+        // Fallback to runId query if no trace IDs found
+        must.push(runIdQuery);
+      }
+    } else {
+      // Fallback to runId query if trace ID lookup fails
+      must.push(runIdQuery);
+    }
   }
 
   if (startTime || endTime) {
@@ -199,7 +247,7 @@ export async function fetchTraces(
 
   const query = {
     size,
-    sort: [{ 'startTime': { order: 'desc' } }],  // Most recent first for live tailing
+    sort: [{ 'start_time': { order: 'desc' } }],  // Most recent first for live tailing
     query: { bool: { must } }
   };
 
