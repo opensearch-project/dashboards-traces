@@ -39,7 +39,11 @@ async function runRealAgentEvaluation(
   const rawEvents: AGUIEvent[] = [];
   const converter = new AGUIToTrajectoryConverter();
 
-  const agentPayload = buildAgentPayload(testCase, modelId);
+  // Build payload based on agent type
+  const isStreaming = agent.endpoint.endsWith('/stream');
+  const agentPayload = isStreaming
+    ? buildAgentPayload(testCase, modelId)
+    : { parameters: { question: testCase.initialPrompt } };
 
   debug('Eval', 'Agent payload:', JSON.stringify(agentPayload).substring(0, 500));
 
@@ -52,22 +56,61 @@ async function runRealAgentEvaluation(
 
   debug('Eval', 'Using proxy:', ENV_CONFIG.agentProxyUrl);
 
-  await consumeSSEStream(
-    ENV_CONFIG.agentProxyUrl,
-    proxyPayload,
-    (event: AGUIEvent) => {
-      // Capture raw event for debugging
-      rawEvents.push(event);
-      onRawEvent?.(event);
+  // Handle streaming vs non-streaming
+  if (isStreaming) {
+    await consumeSSEStream(
+      ENV_CONFIG.agentProxyUrl,
+      proxyPayload,
+      (event: AGUIEvent) => {
+        // Capture raw event for debugging
+        rawEvents.push(event);
+        onRawEvent?.(event);
 
-      // Convert to trajectory steps
-      const steps = converter.processEvent(event);
-      steps.forEach(step => {
-        trajectory.push(step);
-        onStep(step);
-      });
+        // Convert to trajectory steps
+        const steps = converter.processEvent(event);
+        steps.forEach(step => {
+          trajectory.push(step);
+          onStep(step);
+        });
+      }
+    );
+  } else {
+    // Non-streaming: fetch JSON response
+    const response = await fetch(ENV_CONFIG.agentProxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(proxyPayload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Agent request failed: ${response.status} ${await response.text()}`);
     }
-  );
+
+    const result = await response.json();
+
+    // Extract memory ID from ML-Commons response (used as run ID for traces)
+    const runIdFromResponse = result.inference_results?.[0]?.output?.find((o: any) => 
+      o.name === 'memory_id'
+    )?.result;
+
+    debug('Eval', 'Non-streaming run ID:', runIdFromResponse);
+
+    // Show response as a single step for immediate feedback
+    const responseText = result.inference_results?.[0]?.output?.find((o: any) => 
+      o.name === 'response'
+    )?.dataAsMap?.response || 'Processing...';
+
+    const step: TrajectoryStep = {
+      id: uuidv4(),
+      type: 'response',
+      content: responseText,
+      timestamp: Date.now(),
+    };
+    trajectory.push(step);
+    onStep(step);
+
+    return { trajectory, runId: runIdFromResponse, rawEvents };
+  }
 
   const runId = converter.getRunId();
   return { trajectory, runId, rawEvents };

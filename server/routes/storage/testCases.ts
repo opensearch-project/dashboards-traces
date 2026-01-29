@@ -82,7 +82,7 @@ router.get('/api/storage/test-cases', async (req: Request, res: Response) => {
             size: 0,
             aggs: {
               by_id: {
-                terms: { field: 'id', size: 10000 },
+                terms: { field: 'id.keyword', size: 10000 },
                 aggs: {
                   latest: {
                     top_hits: {
