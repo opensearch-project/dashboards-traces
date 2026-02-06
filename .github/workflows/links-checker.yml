@@ -35,6 +35,9 @@ jobs:
             --exclude-path 'node_modules'
             --exclude-path 'coverage'
             --exclude-path 'dist'
+            --retry-wait-time 5
+            --max-retries 3
+            --timeout 30
             '**/*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
