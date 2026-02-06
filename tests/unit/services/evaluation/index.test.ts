@@ -314,4 +314,278 @@ describe('Evaluation Service Index', () => {
       expect(typeof callBedrockJudge).toBe('function');
     });
   });
+
+  describe('runEvaluationWithConnector', () => {
+    // Import the function dynamically to test it
+    let runEvaluationWithConnector: any;
+
+    beforeEach(async () => {
+      jest.resetModules();
+      const module = await import('@/services/evaluation');
+      runEvaluationWithConnector = module.runEvaluationWithConnector;
+    });
+
+    it('should execute evaluation using connector pattern', async () => {
+      const mockConnector = {
+        type: 'mock',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [
+            { type: 'thinking', content: 'Test', timestamp: new Date().toISOString() },
+            { type: 'response', content: 'Done', timestamp: new Date().toISOString() },
+          ],
+          runId: 'connector-run-123',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      const onStepMock = jest.fn();
+      const result = await runEvaluationWithConnector(
+        mockAgent,
+        'claude-3-sonnet',
+        mockTestCase,
+        onStepMock,
+        { registry: mockRegistry }
+      );
+
+      expect(result).toBeDefined();
+      expect(result.status).toBe('completed');
+      expect(result.trajectory).toHaveLength(2);
+      expect(result.connectorProtocol).toBe('mock');
+      expect(mockConnector.execute).toHaveBeenCalled();
+    });
+
+    it('should return pending status for trace mode agents', async () => {
+      const traceAgent = {
+        ...mockAgent,
+        useTraces: true,
+      };
+
+      const mockConnector = {
+        type: 'agui-streaming',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [{ type: 'response', content: 'Done', timestamp: new Date().toISOString() }],
+          runId: 'trace-run-456',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      const onStepMock = jest.fn();
+      const result = await runEvaluationWithConnector(
+        traceAgent,
+        'claude-3-sonnet',
+        mockTestCase,
+        onStepMock,
+        { registry: mockRegistry }
+      );
+
+      expect(result.status).toBe('completed');
+      expect(result.metricsStatus).toBe('pending');
+      expect(result.llmJudgeReasoning).toContain('Waiting for traces');
+    });
+
+    it('should handle connector execution errors', async () => {
+      const mockConnector = {
+        type: 'rest',
+        execute: jest.fn().mockRejectedValue(new Error('Connection failed')),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      const onStepMock = jest.fn();
+      const result = await runEvaluationWithConnector(
+        mockAgent,
+        'claude-3-sonnet',
+        mockTestCase,
+        onStepMock,
+        { registry: mockRegistry }
+      );
+
+      expect(result.status).toBe('failed');
+      expect(result.llmJudgeReasoning).toContain('Connection failed');
+    });
+
+    it('should call onRawEvent callback when provided', async () => {
+      const mockConnector = {
+        type: 'mock',
+        execute: jest.fn().mockImplementation(async (_endpoint, _request, _auth, _onStep, onRawEvent) => {
+          onRawEvent?.({ type: 'raw-event', data: 'test' });
+          return {
+            trajectory: [],
+            runId: 'raw-event-run',
+            rawEvents: [{ type: 'raw-event', data: 'test' }],
+          };
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      const onStepMock = jest.fn();
+      const onRawEventMock = jest.fn();
+      await runEvaluationWithConnector(
+        mockAgent,
+        'claude-3-sonnet',
+        mockTestCase,
+        onStepMock,
+        { registry: mockRegistry, onRawEvent: onRawEventMock }
+      );
+
+      expect(onRawEventMock).toHaveBeenCalledWith({ type: 'raw-event', data: 'test' });
+    });
+
+    it('should build bearer auth from Authorization header', async () => {
+      const agentWithBearerAuth = {
+        ...mockAgent,
+        headers: { Authorization: 'Bearer my-token-123' },
+      };
+
+      const mockConnector = {
+        type: 'rest',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'auth-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithBearerAuth,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      expect(mockConnector.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({ type: 'bearer', token: 'my-token-123' }),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    it('should build basic auth from Authorization header', async () => {
+      const agentWithBasicAuth = {
+        ...mockAgent,
+        headers: { Authorization: 'Basic dXNlcjpwYXNz' },
+      };
+
+      const mockConnector = {
+        type: 'rest',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'basic-auth-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithBasicAuth,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      expect(mockConnector.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({ type: 'basic', token: 'dXNlcjpwYXNz' }),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    it('should build api-key auth from x-api-key header', async () => {
+      const agentWithApiKey = {
+        ...mockAgent,
+        headers: { 'x-api-key': 'my-api-key-456' },
+      };
+
+      const mockConnector = {
+        type: 'rest',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'api-key-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithApiKey,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      expect(mockConnector.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({ type: 'api-key', token: 'my-api-key-456' }),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    it('should pass through headers when no standard auth pattern', async () => {
+      const agentWithCustomHeaders = {
+        ...mockAgent,
+        headers: { 'X-Custom-Header': 'custom-value' },
+      };
+
+      const mockConnector = {
+        type: 'rest',
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'custom-header-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithCustomHeaders,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      expect(mockConnector.execute).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({ type: 'none', headers: { 'X-Custom-Header': 'custom-value' } }),
+        expect.any(Function),
+        undefined
+      );
+    });
+  });
 });
