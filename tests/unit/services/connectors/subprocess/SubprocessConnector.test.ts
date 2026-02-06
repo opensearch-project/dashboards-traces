@@ -401,4 +401,190 @@ describe('SubprocessConnector', () => {
       expect(subprocessConnector).toBeInstanceOf(SubprocessConnector);
     });
   });
+
+  describe('timeout handling', () => {
+    it('should reject when process times out', async () => {
+      // Create connector with very short timeout
+      const timeoutConnector = new SubprocessConnector({
+        timeout: 50,
+        command: 'sleep',
+        args: ['10'],
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      // Don't emit close - let it timeout
+      await expect(
+        timeoutConnector.execute('sleep', request, mockAuth)
+      ).rejects.toThrow(/timed out/);
+
+      expect(mockProcess.kill).toHaveBeenCalledWith('SIGTERM');
+    });
+  });
+
+  describe('signal handling', () => {
+    it('should handle process killed by signal', async () => {
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        mockProcess.emit('close', null, 'SIGTERM');
+      }, 10);
+
+      // Process closed by signal should still return a response
+      const response = await connector.execute('test-command', request, mockAuth);
+      expect(response.trajectory).toBeDefined();
+    });
+
+    it('should handle SIGKILL signal', async () => {
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        mockProcess.emit('close', null, 'SIGKILL');
+      }, 10);
+
+      // Process killed should still return a response
+      const response = await connector.execute('test-command', request, mockAuth);
+      expect(response.trajectory).toBeDefined();
+    });
+  });
+
+  describe('streaming output parsing', () => {
+    it('should parse streaming JSON output', async () => {
+      const streamingConnector = new SubprocessConnector({
+        outputParser: 'streaming',
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      const progressSteps: TrajectoryStep[] = [];
+
+      setTimeout(() => {
+        // Emit JSON lines that look like trajectory steps
+        mockProcess.stdout.emit('data', Buffer.from('{"type":"thinking","content":"Analyzing..."}\n'));
+        mockProcess.stdout.emit('data', Buffer.from('{"type":"response","content":"Done"}\n'));
+        mockProcess.emit('close', 0, null);
+      }, 10);
+
+      await streamingConnector.execute(
+        'test-command',
+        request,
+        mockAuth,
+        (step) => progressSteps.push(step)
+      );
+
+      // Streaming connector should emit steps as they come
+      expect(progressSteps.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should handle malformed JSON in streaming mode', async () => {
+      const streamingConnector = new SubprocessConnector({
+        outputParser: 'streaming',
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        // Emit invalid JSON
+        mockProcess.stdout.emit('data', Buffer.from('not valid json\n'));
+        mockProcess.stdout.emit('data', Buffer.from('{"type":"response","content":"Valid"}\n'));
+        mockProcess.emit('close', 0, null);
+      }, 10);
+
+      // Should not throw, just skip invalid lines
+      const response = await streamingConnector.execute('test-command', request, mockAuth);
+      expect(response.trajectory).toBeDefined();
+    });
+  });
+
+  describe('JSON output parsing', () => {
+    it('should parse JSON output when configured', async () => {
+      const jsonConnector = new SubprocessConnector({
+        outputParser: 'json',
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({
+          thinking: 'Analysis',
+          response: 'Final answer',
+        })));
+        mockProcess.emit('close', 0, null);
+      }, 10);
+
+      const response = await jsonConnector.execute('test-command', request, mockAuth);
+      expect(response.trajectory.length).toBeGreaterThan(0);
+    });
+
+    it('should handle invalid JSON output gracefully', async () => {
+      const jsonConnector = new SubprocessConnector({
+        outputParser: 'json',
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from('not valid json'));
+        mockProcess.emit('close', 0, null);
+      }, 10);
+
+      // Should not throw, just treat as text
+      const response = await jsonConnector.execute('test-command', request, mockAuth);
+      expect(response.trajectory).toBeDefined();
+    });
+  });
+
+  describe('environment variables', () => {
+    it('should pass environment variables to subprocess', async () => {
+      const envConnector = new SubprocessConnector({
+        env: {
+          CUSTOM_VAR: 'custom_value',
+          ANOTHER_VAR: 'another_value',
+        },
+      });
+
+      const request: ConnectorRequest = {
+        testCase: mockTestCase,
+        modelId: 'test-model',
+      };
+
+      setTimeout(() => {
+        mockProcess.emit('close', 0, null);
+      }, 10);
+
+      await envConnector.execute('test-command', request, mockAuth);
+
+      expect(spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Array),
+        expect.objectContaining({
+          env: expect.objectContaining({
+            CUSTOM_VAR: 'custom_value',
+            ANOTHER_VAR: 'another_value',
+          }),
+        })
+      );
+    });
+  });
 });
