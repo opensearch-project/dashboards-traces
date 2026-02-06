@@ -10,6 +10,14 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- CLI commands (`run`, `list`, `benchmark`, `doctor`, `init`) for headless agent evaluation ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Pluggable connector architecture supporting AG-UI, REST, subprocess, and Claude Code agents ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- YAML/TypeScript configuration file support with `defineConfig()` helper ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Server lifecycle management with Playwright-style auto-start for CLI ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- CLI documentation (`docs/CLI.md`, `docs/CONFIGURATION.md`, `docs/CONNECTORS.md`) ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Delete operation feedback UI with success/error messages ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- CLI-only agent badges and disabled state in QuickRunModal ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Comprehensive unit tests for connectors (AG-UI, REST, subprocess, Claude Code, mock) ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
 - TLS skip verify option for OpenSearch connections (`OPENSEARCH_STORAGE_TLS_SKIP_VERIFY`, `OPENSEARCH_LOGS_TLS_SKIP_VERIFY`)
 - Full evaluation flow E2E tests using Demo Agent and Demo Model for CI-friendly testing
 - Enhanced CI workflow with integration test coverage reporting and badge generation
@@ -50,6 +58,12 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Updated judge routes to use demo-model provider detection
 
 ### Fixed
+- Data loading race condition in BenchmarkRunsPage ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Memory leak in benchmark timeout handling with try-finally pattern ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Config loading race condition in server startup ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Runtime environment variable evaluation in connector config ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- E2E test routing (hash routing to direct routing) ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+- Excessive debug logging reduced to essential warnings only ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
 - Support for nested OTel attribute format in trace data (backwards compatible with flattened format)
 - Fixed server default port to 4001 to match documentation ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Fixed Span interface to make attributes optional, matching actual API data ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))

@@ -692,14 +692,22 @@ When preparing to raise a PR against the upstream repository (change remote from
    git rebase origin/main --signoff
    ```
 
-5. **Add changelog entry:**
-   - Create or update `CHANGELOG.md` with your changes
-   - Follow the format in existing changelog entries
-   - Add entry under "Unreleased" section with category (Added/Changed/Fixed/Removed)
+5. **Add changelog entry (REQUIRED - CI will fail without this):**
+   - Update `CHANGELOG.md` for EVERY commit/PR - this is enforced by CI
+   - Add entry under "Unreleased" section with appropriate category:
+     - `Added` - New features, commands, components
+     - `Changed` - Modifications to existing functionality
+     - `Fixed` - Bug fixes
+     - `Removed` - Removed features or deprecated code
+     - `Security` - Security-related fixes
+   - Include PR link in format `([#PR_NUMBER](https://github.com/opensearch-project/dashboards-traces/pull/PR_NUMBER))`
    ```markdown
    ## [Unreleased]
    ### Added
-   - Your feature description ([#PR_NUMBER](link))
+   - CLI commands for headless agent evaluation ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
+
+   ### Fixed
+   - Memory leak in benchmark timeout handling ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
    ```
 
 6. **Push to your fork (change remote name as needed):**
