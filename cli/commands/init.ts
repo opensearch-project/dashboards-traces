@@ -73,52 +73,6 @@ export default defineConfig({
 });
 `;
 
-const YAML_CONFIG = `# Agent Health Configuration
-# See docs/CONFIGURATION.md for full options
-# yaml-language-server: $schema=./node_modules/@opensearch-project/agent-health/schema.json
-
-agents:
-  # ML-Commons agent (AG-UI streaming)
-  - name: ml-commons
-    key: ml-commons
-    connector: agui-streaming
-    endpoint: \${MLCOMMONS_ENDPOINT}
-    auth:
-      type: basic
-      username: \${OPENSEARCH_USER:admin}
-      password: \${OPENSEARCH_PASS}
-    models:
-      - claude-sonnet
-
-  # Claude Code CLI agent (optional)
-  # Uncomment to enable Claude Code comparison
-  # - name: claude-code
-  #   key: claude-code
-  #   connector: claude-code
-  #   endpoint: claude
-  #   env:
-  #     AWS_PROFILE: \${AWS_PROFILE:Bedrock}
-  #     CLAUDE_CODE_USE_BEDROCK: "1"
-  #     AWS_REGION: \${AWS_REGION:us-west-2}
-  #   models:
-  #     - claude-sonnet-4
-
-# Test cases can be inline or loaded from files
-testCases: ./test-cases/*.yaml
-
-# Output reporters
-reporters:
-  - console
-  - json:
-      output: report.json
-
-# Judge configuration
-judge:
-  provider: bedrock
-  model: claude-sonnet
-  region: \${AWS_REGION:us-west-2}
-`;
-
 const ENV_TEMPLATE = `# Agent Health Environment Configuration
 # Copy this to .env and fill in your values
 
@@ -184,29 +138,20 @@ expectedOutcomes:
 export function createInitCommand(): Command {
   const command = new Command('init')
     .description('Initialize configuration files')
-    .option('--yaml', 'Generate YAML config (default is TypeScript)')
     .option('--force', 'Overwrite existing files')
     .option('--with-examples', 'Include example test case')
-    .action(async (options: { yaml?: boolean; force?: boolean; withExamples?: boolean }) => {
+    .action(async (options: { force?: boolean; withExamples?: boolean }) => {
       console.log(chalk.bold('\n  Agent Health - Initialize Configuration\n'));
 
       const cwd = process.cwd();
       const files: Array<{ path: string; content: string; name: string }> = [];
 
       // Config file
-      if (options.yaml) {
-        files.push({
-          path: resolve(cwd, 'agent-health.yaml'),
-          content: YAML_CONFIG,
-          name: 'agent-health.yaml',
-        });
-      } else {
-        files.push({
-          path: resolve(cwd, 'agent-health.config.ts'),
-          content: TYPESCRIPT_CONFIG,
-          name: 'agent-health.config.ts',
-        });
-      }
+      files.push({
+        path: resolve(cwd, 'agent-health.config.ts'),
+        content: TYPESCRIPT_CONFIG,
+        name: 'agent-health.config.ts',
+      });
 
       // Env template
       files.push({

@@ -789,12 +789,6 @@ git rebase -i HEAD~N  # then use 'edit' and run: git commit --amend -s --no-edit
 
 The following features are planned but not yet implemented:
 
-### Config File Support (TS + YAML)
-- TypeScript config: `agent-health.config.ts` with full type safety
-- YAML config: `agent-health.yaml` with JSON Schema validation
-- Config loader with priority: TS > JS > YAML > YML
-- Environment variable interpolation in YAML (`${VAR}`, `${VAR:default}`)
-
 ### CLI Enhancements
 - `benchmark` command: Run full benchmark across multiple test cases
 - `compare` command: Side-by-side comparison of agent results

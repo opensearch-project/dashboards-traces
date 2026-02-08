@@ -129,7 +129,7 @@ agent-health doctor [-o text|json]
 **Checks:** config file, `.env`, AWS credentials, Claude CLI, agents, connectors, OpenSearch.
 
 ```
-✓ Config File: Found: agent-health.yaml
+✓ Config File: Found: agent-health.config.ts
 ✓ AWS Credentials: Profile: Bedrock
 ⚠ OpenSearch Storage: Not configured
 ```
@@ -146,11 +146,10 @@ agent-health init [options]
 
 | Option | Description |
 |--------|-------------|
-| `--yaml` | Generate YAML config (default: TypeScript) |
 | `--force` | Overwrite existing files |
 | `--with-examples` | Include sample test case |
 
-**Creates:** `agent-health.config.ts` (or `.yaml`), `.env.example`
+**Creates:** `agent-health.config.ts`, `.env.example`
 
 ---
 
