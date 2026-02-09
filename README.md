@@ -2,10 +2,26 @@
 
 [![CI](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml/badge.svg)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Coverage](https://img.shields.io/badge/coverage->90%25-brightgreen.svg)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@opensearch-project/agent-health.svg)](https://www.npmjs.com/package/@opensearch-project/agent-health)
 
+[![Unit Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/opensearch-project/dashboards-traces/badges/unit-tests.json)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
+[![Unit Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/opensearch-project/dashboards-traces/badges/unit-coverage.json)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
+[![Integration Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/opensearch-project/dashboards-traces/badges/integration-tests.json)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
+[![E2E Tests](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/opensearch-project/dashboards-traces/badges/e2e-tests.json)](https://github.com/opensearch-project/dashboards-traces/actions/workflows/ci.yml)
+
 An evaluation and observability framework for AI agents. Features real-time trace visualization, "Golden Path" trajectory comparison, and LLM-based evaluation scoring.
+
+Try It by running:
+
+```bash
+npx @goyamegh/agent-health@latest
+```
+
+Opens http://localhost:4001 for the web UI.
+
+### Architecture
+
+![Agent Health Architecture](docs/diagrams/architecture.png)
 
 ## Features
 
@@ -20,6 +36,7 @@ An evaluation and observability framework for AI agents. Features real-time trac
 
 For a detailed walkthrough, see [Getting Started](./GETTING_STARTED.md).
 
+
 ### Supported Connectors
 
 | Connector | Protocol | Description |
@@ -31,6 +48,10 @@ For a detailed walkthrough, see [Getting Started](./GETTING_STARTED.md).
 | `mock` | In-memory | Demo and testing |
 
 For creating custom connectors, see [docs/CONNECTORS.md](./docs/CONNECTORS.md).
+
+---
+
+
 
 ---
 
@@ -62,13 +83,8 @@ npx @opensearch-project/agent-health init
 
 For full CLI documentation, see [docs/CLI.md](./docs/CLI.md).
 
----
-
-## Architecture
 
 
-
----
 
 ## Authentication (Required)
 
@@ -291,19 +307,6 @@ Agent Health supports multiple agent types:
 | HolmesGPT | `HOLMESGPT_ENDPOINT` | AG-UI compatible RCA agent |
 | ML-Commons | `MLCOMMONS_ENDPOINT` | See [ML-Commons Setup](./docs/ML-COMMONS-SETUP.md) |
 
----
-
-## Architecture
-
-```
-Browser (React UI)
-       |
-       v
-Backend Server (4001) --> Bedrock LLM Judge
-       |
-       v
-Agent Endpoint --> Tools --> OpenSearch Data
-```
 
 ---
 

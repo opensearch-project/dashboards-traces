@@ -30,7 +30,7 @@ jobs:
         run: npm run build:all
 
       - name: Run unit tests with coverage
-        run: npm run test:unit -- --coverage --coverageReporters=json-summary --coverageReporters=lcov --coverageReporters=text
+        run: npm run test:unit -- --coverage --coverageReporters=json-summary --coverageReporters=lcov --coverageReporters=text 2>&1 | tee unit-test-output.txt
 
       - name: Upload coverage artifact
         if: matrix.node-version == '20'
@@ -71,6 +71,16 @@ jobs:
             COLOR="red"
           fi
           echo "{\"schemaVersion\":1,\"label\":\"Unit Coverage\",\"message\":\"${COVERAGE}%\",\"color\":\"${COLOR}\"}" > badges/unit-coverage.json
+
+          # Generate unit test count badge
+          TESTS_PASSED=$(grep -o '[0-9]* passed' unit-test-output.txt | tail -1 | grep -o '[0-9]*' || echo "0")
+          TESTS_TOTAL=$(grep -o '[0-9]* total' unit-test-output.txt | tail -1 | grep -o '[0-9]*' || echo "0")
+          if [ "$TESTS_PASSED" = "$TESTS_TOTAL" ] && [ "$TESTS_TOTAL" != "0" ]; then
+            TEST_COLOR="brightgreen"
+          else
+            TEST_COLOR="red"
+          fi
+          echo "{\"schemaVersion\":1,\"label\":\"Unit Tests\",\"message\":\"${TESTS_PASSED}/${TESTS_TOTAL} passed\",\"color\":\"${TEST_COLOR}\"}" > badges/unit-tests.json
 
           # Enforce 90% line coverage threshold
           if (( $(echo "$COVERAGE < 90" | bc -l) )); then
@@ -230,6 +240,48 @@ jobs:
             echo "Integration tests completed. Check the test output above for details." >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Generate integration test badges
+        if: always()
+        run: |
+          mkdir -p badges
+
+          # Parse test counts
+          TESTS_PASSED="0"
+          TESTS_TOTAL="0"
+          if [ -f integration-test-output.txt ]; then
+            TESTS_PASSED=$(grep -o '[0-9]* passed' integration-test-output.txt | tail -1 | grep -o '[0-9]*' || echo "0")
+            TESTS_TOTAL=$(grep -o '[0-9]* total' integration-test-output.txt | tail -1 | grep -o '[0-9]*' || echo "0")
+          fi
+          if [ "$TESTS_PASSED" = "$TESTS_TOTAL" ] && [ "$TESTS_TOTAL" != "0" ]; then
+            TEST_COLOR="brightgreen"
+          else
+            TEST_COLOR="red"
+          fi
+          echo "{\"schemaVersion\":1,\"label\":\"Integration Tests\",\"message\":\"${TESTS_PASSED}/${TESTS_TOTAL} passed\",\"color\":\"${TEST_COLOR}\"}" > badges/integration-tests.json
+
+          # Parse coverage if available
+          if [ -f coverage-integration/coverage-summary.json ]; then
+            COV=$(node -e "const c = require('./coverage-integration/coverage-summary.json'); console.log(c.total.lines.pct)" 2>/dev/null || echo "0")
+            if (( $(echo "$COV >= 70" | bc -l 2>/dev/null || echo "0") )); then
+              COV_COLOR="brightgreen"
+            elif (( $(echo "$COV >= 50" | bc -l 2>/dev/null || echo "0") )); then
+              COV_COLOR="yellow"
+            else
+              COV_COLOR="red"
+            fi
+            echo "{\"schemaVersion\":1,\"label\":\"Integration Coverage\",\"message\":\"${COV}%\",\"color\":\"${COV_COLOR}\"}" > badges/integration-coverage.json
+          else
+            echo "{\"schemaVersion\":1,\"label\":\"Integration Coverage\",\"message\":\"N/A\",\"color\":\"lightgrey\"}" > badges/integration-coverage.json
+          fi
+
+      - name: Upload integration badge data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: badge-data-integration
+          path: badges/
+          retention-days: 30
+
       - name: Upload integration coverage artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -368,6 +420,13 @@ jobs:
           path: badges/e2e
         continue-on-error: true
 
+      - name: Download integration test badge data
+        uses: actions/download-artifact@v4
+        with:
+          name: badge-data-integration
+          path: badges/integration
+        continue-on-error: true
+
       - name: Download integration coverage report
         uses: actions/download-artifact@v4
         with:
@@ -380,8 +439,12 @@ jobs:
           echo "# 📋 Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Unit test coverage
+          # Unit test results
           echo "## Unit Tests" >> $GITHUB_STEP_SUMMARY
+          if [ -f badges/unit/unit-tests.json ]; then
+            TESTS=$(jq -r '.message' badges/unit/unit-tests.json 2>/dev/null || echo "N/A")
+            echo "- **Tests:** $TESTS" >> $GITHUB_STEP_SUMMARY
+          fi
           if [ -f badges/unit/unit-coverage.json ]; then
             COVERAGE=$(jq -r '.message' badges/unit/unit-coverage.json 2>/dev/null || echo "N/A")
             echo "- **Coverage:** $COVERAGE" >> $GITHUB_STEP_SUMMARY
@@ -391,13 +454,20 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Integration tests
+          # Integration test results
           echo "## Integration Tests" >> $GITHUB_STEP_SUMMARY
-          if [ -f coverage-integration/coverage-summary.json ]; then
+          if [ -f badges/integration/integration-tests.json ]; then
+            INTEG_TESTS=$(jq -r '.message' badges/integration/integration-tests.json 2>/dev/null || echo "N/A")
+            echo "- **Tests:** $INTEG_TESTS" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f badges/integration/integration-coverage.json ]; then
+            INTEG_COV=$(jq -r '.message' badges/integration/integration-coverage.json 2>/dev/null || echo "N/A")
+            echo "- **Coverage:** $INTEG_COV" >> $GITHUB_STEP_SUMMARY
+          elif [ -f coverage-integration/coverage-summary.json ]; then
             LINES=$(node -e "const c = require('./coverage-integration/coverage-summary.json'); console.log(c.total.lines.pct)" 2>/dev/null || echo "N/A")
             echo "- **Coverage:** ${LINES}%" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- Coverage data not available (integration tests may not collect coverage)" >> $GITHUB_STEP_SUMMARY
+            echo "- Coverage data not available" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -431,6 +501,7 @@ jobs:
         run: |
           mkdir -p combined-badges
           cp badges/unit/*.json combined-badges/ 2>/dev/null || true
+          cp badges/integration/*.json combined-badges/ 2>/dev/null || true
           cp badges/e2e/*.json combined-badges/ 2>/dev/null || true
 
       - name: Upload combined badge data
@@ -439,3 +510,40 @@ jobs:
           name: test-badges
           path: combined-badges/
           retention-days: 90
+
+  # Publish badge JSON files to the 'badges' branch for shields.io endpoint badges
+  publish-badges:
+    runs-on: ubuntu-latest
+    needs: [test-summary]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download combined badge data
+        uses: actions/download-artifact@v4
+        with:
+          name: test-badges
+          path: badges/
+        continue-on-error: true
+
+      - name: Publish badges to badges branch
+        run: |
+          if [ ! -d badges ] || [ -z "$(ls -A badges/)" ]; then
+            echo "No badge data found, skipping publish"
+            exit 0
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create orphan branch with only badge files
+          git checkout --orphan badges-tmp
+          git rm -rf . > /dev/null 2>&1 || true
+          cp -r badges/* .
+          git add *.json
+          git commit -m "Update test badges [skip ci]"
+          git push -f origin badges-tmp:badges
