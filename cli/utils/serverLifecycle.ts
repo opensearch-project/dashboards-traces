@@ -160,7 +160,7 @@ export async function killServerOnPort(port: number): Promise<void> {
     if (process.platform !== 'win32') {
       // Unix/Mac: use lsof to find and kill process
       try {
-        execSync(`lsof -t -i:${port} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+        execSync(`lsof -t -i:${port} -sTCP:LISTEN | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
       } catch {
         // Ignore errors - process may not exist
       }
@@ -225,17 +225,34 @@ export async function startServer(
   port: number,
   timeout: number
 ): Promise<ChildProcess> {
-  // Spawn server process
-  // Use the serve command which is the standard way to start the server
-  // Use path.join for cross-platform compatibility
-  const cliPath = path.join('bin', 'cli.js');
+  // Spawn server process using absolute path to bin/cli.js
+  // __dirname resolves to cli/dist/ in the installed package, so go up 2 levels to package root
+  const packageRoot = join(__dirname, '..', '..');
+  const cliPath = join(packageRoot, 'bin', 'cli.js');
   const child = spawn('node', [cliPath, 'serve', '-p', String(port), '--no-browser'], {
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      // Ensure child inherits all env vars including OpenSearch config
     },
+  });
+
+  // Capture stderr output for diagnostics on failure
+  let stderrOutput = '';
+  let stdoutOutput = '';
+  child.stderr?.on('data', (data: Buffer) => {
+    stderrOutput += data.toString();
+  });
+  child.stdout?.on('data', (data: Buffer) => {
+    stdoutOutput += data.toString();
+  });
+
+  // Listen for early exit (crash before server is ready)
+  let earlyExit = false;
+  let exitCode: number | null = null;
+  child.on('exit', (code) => {
+    earlyExit = true;
+    exitCode = code;
   });
 
   // Unref so parent can exit independently (in non-CI mode)
@@ -250,6 +267,24 @@ export async function startServer(
       child.kill();
     } catch {
       // Ignore kill errors
+    }
+
+    // Show diagnostics to help debug startup failures
+    if (earlyExit) {
+      console.error(`[ServerLifecycle] Server process exited with code ${exitCode} before becoming ready`);
+    } else {
+      console.error(`[ServerLifecycle] Server process did not respond to health checks within ${timeout}ms`);
+    }
+    if (stderrOutput) {
+      console.error(`[ServerLifecycle] Server stderr:\n${stderrOutput}`);
+    }
+    if (stdoutOutput) {
+      console.error(`[ServerLifecycle] Server stdout:\n${stdoutOutput}`);
+    }
+    if (!stderrOutput && !stdoutOutput) {
+      console.error(`[ServerLifecycle] No output captured from server process`);
+      console.error(`[ServerLifecycle] CLI path: ${cliPath}`);
+      console.error(`[ServerLifecycle] Package root: ${packageRoot}`);
     }
     throw new Error(`Server failed to start within ${timeout}ms on port ${port}`);
   }

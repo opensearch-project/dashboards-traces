@@ -12,7 +12,6 @@ import 'dotenv/config';
 import config from './config/index.js';
 import { createApp } from './app.js';
 import { isStorageConfigured } from './services/opensearchClient.js';
-import { loadConfig } from '@/lib/config/index.js';
 
 // Register server-side connectors (subprocess, claude-code)
 // This import has side effects that register connectors with the registry
@@ -23,13 +22,8 @@ export { createApp } from './app.js';
 
 const PORT = config.PORT;
 
-// Load config asynchronously before starting the server
-// This ensures loadConfigSync() has cached config available
 async function startServer() {
-  // Load config FIRST before creating the app (routes use loadConfigSync)
-  await loadConfig();
-
-  const app = createApp();
+  const app = await createApp();
 
   // Start server - bind to 0.0.0.0 to allow external access
   app.listen(PORT, '0.0.0.0', () => {
