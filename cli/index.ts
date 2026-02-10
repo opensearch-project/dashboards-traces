@@ -168,5 +168,20 @@ program
     }
   });
 
+// Handle unknown commands
+program.on('command:*', (operands) => {
+  const unknownCommand = operands[0];
+  const availableCommands = program.commands.map(cmd => cmd.name());
+  console.error(chalk.red(`\n  Error: Unknown command '${unknownCommand}'`));
+  console.log('');
+  console.log(chalk.cyan('  Available commands:'));
+  for (const cmd of availableCommands) {
+    console.log(chalk.gray(`    - ${cmd}`));
+  }
+  console.log('');
+  console.log(chalk.gray(`  Run ${chalk.cyan('agent-health --help')} for usage information.\n`));
+  process.exitCode = 1;
+});
+
 // Parse command line arguments
 program.parse();

@@ -32,16 +32,63 @@ describe('ApiClient', () => {
       expect(result).toEqual(healthResponse);
     });
 
-    it('should throw error on failed health check', async () => {
+    it('should throw error after all retries exhausted', async () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 503,
         statusText: 'Service Unavailable',
       });
 
-      await expect(client.checkHealth()).rejects.toThrow(
+      await expect(client.checkHealth(2, 1)).rejects.toThrow(
         'Server health check failed: 503 Service Unavailable'
       );
+      // 1 initial + 2 retries = 3 calls
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should succeed on retry after transient failure', async () => {
+      const healthResponse = { status: 'healthy', version: '1.0.0', service: 'agent-health' };
+      // First call fails with network error, second succeeds
+      mockFetch
+        .mockRejectedValueOnce(new Error('ECONNRESET'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue(healthResponse),
+        });
+
+      const result = await client.checkHealth(2, 1);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual(healthResponse);
+    });
+
+    it('should not retry when retries is 0', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+      });
+
+      await expect(client.checkHealth(0)).rejects.toThrow(
+        'Server health check failed: 503 Service Unavailable'
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retry on network errors', async () => {
+      const healthResponse = { status: 'healthy', version: '1.0.0', service: 'agent-health' };
+      mockFetch
+        .mockRejectedValueOnce(new Error('fetch failed'))
+        .mockRejectedValueOnce(new Error('fetch failed'))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue(healthResponse),
+        });
+
+      const result = await client.checkHealth(2, 1);
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(result).toEqual(healthResponse);
     });
   });
 
@@ -399,6 +446,61 @@ describe('ApiClient', () => {
       await expect(
         client.createBenchmark({ name: 'Bad Benchmark', testCaseIds: [] })
       ).rejects.toThrow('Failed to create benchmark: Validation error');
+    });
+  });
+
+  describe('bulkCreateTestCases', () => {
+    it('should bulk create test cases and return response', async () => {
+      const bulkResponse = {
+        created: 2,
+        errors: false,
+        testCases: [
+          { id: 'tc-1', name: 'Test Case 1' },
+          { id: 'tc-2', name: 'Test Case 2' },
+        ],
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue(bulkResponse),
+      });
+
+      const testCases = [
+        { name: 'Test Case 1', category: 'RCA', difficulty: 'Easy', initialPrompt: 'test', expectedOutcomes: ['outcome'] },
+        { name: 'Test Case 2', category: 'RCA', difficulty: 'Medium', initialPrompt: 'test2', expectedOutcomes: ['outcome2'] },
+      ];
+      const result = await client.bulkCreateTestCases(testCases);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${baseUrl}/api/storage/test-cases/bulk`,
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ testCases }),
+        })
+      );
+      expect(result).toEqual(bulkResponse);
+    });
+
+    it('should throw error on failure', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        text: jest.fn().mockResolvedValue('Server error'),
+      });
+
+      await expect(
+        client.bulkCreateTestCases([{ name: 'Test' }])
+      ).rejects.toThrow('Failed to bulk create test cases: Server error');
+    });
+
+    it('should parse JSON error body', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        text: jest.fn().mockResolvedValue(JSON.stringify({ error: 'Validation failed' })),
+      });
+
+      await expect(
+        client.bulkCreateTestCases([])
+      ).rejects.toThrow('Failed to bulk create test cases: Validation failed');
     });
   });
 

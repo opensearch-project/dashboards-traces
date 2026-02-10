@@ -79,20 +79,40 @@ export interface EvaluationResult {
 }
 
 /**
+ * Response from bulk creating test cases
+ */
+export interface BulkCreateTestCasesResponse {
+  created: number;
+  errors: boolean;
+  testCases: Array<{ id: string; name: string }>;
+}
+
+/**
  * API Client for Agent Health server
  */
 export class ApiClient {
   constructor(private baseUrl: string) {}
 
   /**
-   * Check if server is healthy
+   * Check if server is healthy, with optional retries and exponential backoff.
    */
-  async checkHealth(): Promise<HealthResponse> {
-    const res = await fetch(`${this.baseUrl}/health`);
-    if (!res.ok) {
-      throw new Error(`Server health check failed: ${res.status} ${res.statusText}`);
+  async checkHealth(retries = 2, delayMs = 500): Promise<HealthResponse> {
+    let lastError: Error | undefined;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(`${this.baseUrl}/health`);
+        if (!res.ok) {
+          throw new Error(`Server health check failed: ${res.status} ${res.statusText}`);
+        }
+        return res.json();
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < retries) {
+          await new Promise(resolve => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
+        }
+      }
     }
-    return res.json();
+    throw lastError!;
   }
 
   /**
@@ -402,6 +422,31 @@ export class ApiClient {
         sampleDataCount: data.testCases?.length || 0,
       },
     };
+  }
+
+  /**
+   * Bulk create test cases
+   */
+  async bulkCreateTestCases(testCases: object[]): Promise<BulkCreateTestCasesResponse> {
+    const res = await fetch(`${this.baseUrl}/api/storage/test-cases/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ testCases }),
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.text();
+      let errorMessage: string;
+      try {
+        const parsed = JSON.parse(errorBody);
+        errorMessage = parsed.error || errorBody;
+      } catch {
+        errorMessage = errorBody;
+      }
+      throw new Error(`Failed to bulk create test cases: ${errorMessage}`);
+    }
+
+    return res.json();
   }
 
   /**

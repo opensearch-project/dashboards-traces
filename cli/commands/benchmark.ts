@@ -15,10 +15,11 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
-import { writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { loadConfig, DEFAULT_SERVER_CONFIG, type ResolvedConfig } from '@/lib/config/index.js';
 import { ensureServer, createServerCleanup, isServerRunning, type EnsureServerResult } from '@/cli/utils/serverLifecycle.js';
 import { ApiClient, type BenchmarkExecutionEvent } from '@/cli/utils/apiClient.js';
+import { validateTestCasesArrayJson, type ValidatedTestCaseInput } from '@/lib/testCaseValidation.js';
 import { calculateRunStats, getReportIdsFromRun } from '@/lib/runStats.js';
 import type { AgentConfig, Benchmark, BenchmarkRun, TestCaseRun, EvaluationReport } from '@/types/index.js';
 
@@ -29,6 +30,7 @@ interface BenchmarkOptions {
   verbose?: boolean;
   export?: string;
   stopServer?: boolean;
+  file?: string;
 }
 
 interface AgentResults {
@@ -54,6 +56,40 @@ function findAgent(identifier: string, config: ResolvedConfig): AgentConfig | un
  */
 function getDefaultModel(agent: AgentConfig): string {
   return agent.models[0] || 'claude-sonnet';
+}
+
+/**
+ * Check if a string looks like a file path (ends with .json)
+ */
+export function isFilePath(value: string): boolean {
+  return value.toLowerCase().endsWith('.json');
+}
+
+/**
+ * Load and validate test cases from a JSON file
+ */
+export function loadAndValidateTestCasesFile(filePath: string): ValidatedTestCaseInput[] {
+  let raw: string;
+  try {
+    raw = readFileSync(filePath, 'utf-8');
+  } catch (err) {
+    throw new Error(`Cannot read file: ${filePath} (${err instanceof Error ? err.message : err})`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Invalid JSON in file: ${filePath}`);
+  }
+
+  const result = validateTestCasesArrayJson(parsed);
+  if (!result.valid || !result.data) {
+    const msgs = result.errors.map(e => e.path ? `${e.path}: ${e.message}` : e.message).join('\n  ');
+    throw new Error(`Validation failed for ${filePath}:\n  ${msgs}`);
+  }
+
+  return result.data;
 }
 
 /**
@@ -285,6 +321,7 @@ export function createBenchmarkCommand(): Command {
   const command = new Command('benchmark')
     .description('Run a benchmark against one or more agents')
     .option('-n, --name <name>', 'Benchmark name or ID (optional in quick mode)')
+    .option('-f, --file <path>', 'JSON file of test cases to import and benchmark')
     .option(
       '-a, --agent <key>',
       'Agent key (can be specified multiple times)',
@@ -307,22 +344,29 @@ export function createBenchmarkCommand(): Command {
       // Check if server is already running (for smart defaults)
       const serverWasRunning = await isServerRunning(serverConfig.port);
 
-      // Determine mode: quick mode if no server running and no benchmark name
-      const quickMode = !options.name && !serverWasRunning;
+      // Determine file path: explicit -f flag, or -n value that looks like a file
+      const filePath = options.file || (options.name && isFilePath(options.name) ? options.name : undefined);
+      const fileMode = !!filePath;
 
-      // If server is running but no benchmark name, show helpful error
-      if (!options.name && serverWasRunning) {
+      // Determine mode: quick mode if no server running, no benchmark name, and no file
+      const quickMode = !options.name && !fileMode && !serverWasRunning;
+
+      // If server is running but no benchmark name and no file, show helpful error
+      if (!options.name && !fileMode && serverWasRunning) {
         console.error(chalk.red('  Error: Benchmark name required when server is already running.'));
         console.log('');
         console.log(chalk.cyan('  Options:'));
         console.log(chalk.gray('    1. Specify a benchmark:  benchmark -n "Name" -a claude-code'));
-        console.log(chalk.gray('    2. Stop the server and run in quick mode'));
-        console.log(chalk.gray('    3. List available:       npx agent-health list benchmarks'));
+        console.log(chalk.gray('    2. Import from file:     benchmark -f ./test-cases.json -a mock'));
+        console.log(chalk.gray('    3. Stop the server and run in quick mode'));
+        console.log(chalk.gray('    4. List available:       npx agent-health list benchmarks'));
         console.log('');
         process.exit(1);
       }
 
-      if (quickMode) {
+      if (fileMode) {
+        console.log(chalk.cyan(`  Running in file mode (importing test cases from ${filePath})`));
+      } else if (quickMode) {
         console.log(chalk.cyan('  Running in quick mode (auto-creating benchmark from test cases)'));
       }
 
@@ -330,8 +374,8 @@ export function createBenchmarkCommand(): Command {
       const connectSpinner = ora('Connecting to server...').start();
       let serverResult: EnsureServerResult;
       let cleanup: () => void;
-      // Clean up server: in CI, quick mode, or when --stop-server flag is used
-      const shouldStopServer = isCI || quickMode || options.stopServer;
+      // Clean up server: in CI, quick/file mode, or when --stop-server flag is used
+      const shouldStopServer = isCI || quickMode || fileMode || options.stopServer;
 
       try {
         serverResult = await ensureServer(serverConfig);
@@ -352,12 +396,34 @@ export function createBenchmarkCommand(): Command {
       const api = new ApiClient(serverResult.baseUrl);
 
       try {
-        // Verify server is healthy
-        await api.checkHealth();
-
         let benchmark: Benchmark | null = null;
 
-        if (quickMode) {
+        if (fileMode) {
+          // File mode: import test cases from JSON file and create benchmark
+          const importSpinner = ora(`Loading test cases from ${filePath}...`).start();
+          try {
+            const validatedTestCases = loadAndValidateTestCasesFile(filePath!);
+            importSpinner.succeed(`Validated ${validatedTestCases.length} test cases from file`);
+
+            // Bulk create via server
+            const uploadSpinner = ora('Importing test cases to server...').start();
+            const bulkResult = await api.bulkCreateTestCases(validatedTestCases);
+            uploadSpinner.succeed(`Imported ${bulkResult.created} test cases`);
+
+            // Create benchmark from imported test case IDs
+            const benchmarkName = (options.file && options.name) ? options.name : `file-${Date.now()}`;
+            const createSpinner = ora('Creating benchmark...').start();
+            benchmark = await api.createBenchmark({
+              name: benchmarkName,
+              description: `Imported from ${filePath}`,
+              testCaseIds: bulkResult.testCases.map(tc => tc.id),
+            });
+            createSpinner.succeed(`Created benchmark: ${benchmark.name}`);
+          } catch (error) {
+            importSpinner.fail(`File import failed: ${error instanceof Error ? error.message : error}`);
+            process.exit(1);
+          }
+        } else if (quickMode) {
           // Quick mode: create benchmark from all test cases
           const testCasesSpinner = ora('Fetching test cases...').start();
           try {
@@ -390,7 +456,9 @@ export function createBenchmarkCommand(): Command {
             console.log(chalk.cyan('  The -n/--name option accepts:'));
             console.log(chalk.gray('    • Benchmark ID (e.g., demo-baseline)'));
             console.log(chalk.gray('    • Benchmark name (case-sensitive, e.g., "Baseline")'));
-            console.log(chalk.gray('    • Path to JSON file (e.g., ./my-benchmark.json)'));
+            console.log('');
+            console.log(chalk.cyan('  Or import from file:'));
+            console.log(chalk.gray('    benchmark -f ./test-cases.json -a mock'));
             console.log('');
             console.log(chalk.cyan('  Available benchmarks:'));
             console.log(chalk.gray('    npx agent-health list benchmarks'));
