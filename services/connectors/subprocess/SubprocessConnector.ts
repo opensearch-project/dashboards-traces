@@ -80,7 +80,8 @@ export class SubprocessConnector extends BaseConnector {
     console.log('[Subprocess] ========== execute() STARTED ==========');
     const command = endpoint || this.config.command;
     const args = this.config.args || [];
-    const input = this.buildPayload(request);
+    // Use pre-built payload from hook if available, otherwise build fresh
+    const input = request.payload || this.buildPayload(request);
 
     console.log('[Subprocess] Command:', command);
     console.log('[Subprocess] Args:', args);

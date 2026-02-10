@@ -134,7 +134,7 @@ export async function runEvaluationWithConnector(
     const connector = connectorRegistry.getForAgent(agentWithConnector);
 
     // Build connector request
-    const request: ConnectorRequest = {
+    let request: ConnectorRequest = {
       testCase,
       modelId,
     };
@@ -146,6 +146,7 @@ export async function runEvaluationWithConnector(
     let effectiveEndpoint = agent.endpoint;
     if (agent.hooks?.beforeRequest) {
       const previewPayload = connector.buildPayload(request);
+
       const hookContext: BeforeRequestContext = {
         endpoint: agent.endpoint,
         payload: previewPayload,
@@ -153,6 +154,15 @@ export async function runEvaluationWithConnector(
       };
       const hookResult = await executeBeforeRequestHook(agent.hooks, hookContext, agent.key);
       effectiveEndpoint = hookResult.endpoint;
+
+      // Pass the hook-modified payload through to the connector so it skips
+      // its internal buildPayload() call. This preserves ALL modifications the
+      // hook made to the payload (threadId, runId, custom fields, etc.)
+      request = {
+        ...request,
+        payload: hookResult.payload,
+      };
+
       // Merge any hook-modified headers into auth
       if (hookResult.headers) {
         auth.headers = { ...auth.headers, ...hookResult.headers };
@@ -298,6 +308,8 @@ export async function runEvaluationWithConnector(
 
 /**
  * Run real agent evaluation by streaming AG UI events
+ * @deprecated Use runEvaluationWithConnector() via the server's /api/evaluate endpoint instead.
+ * This browser-side path is kept for backwards compatibility but has no active callers.
  */
 async function runRealAgentEvaluation(
   agent: AgentConfig,
@@ -348,6 +360,10 @@ async function runRealAgentEvaluation(
 /**
  * Run evaluation with selected agent, model, and test case
  * Streams trajectory steps to UI in real-time via onStep callback
+ *
+ * @deprecated Use runServerEvaluation() from services/client/evaluationApi instead.
+ * The server-side path (/api/evaluate) consolidates all evaluation logic through the
+ * connector system, ensuring consistent behavior for hooks, storage, and all agent types.
  */
 export async function runEvaluation(
   agent: AgentConfig,

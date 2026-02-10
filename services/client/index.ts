@@ -16,3 +16,10 @@ export {
   executeExperimentRun,
   cancelExperimentRun,
 } from './benchmarkApi';
+
+export {
+  runServerEvaluation,
+  type ServerEvaluationRequest,
+  type ServerEvaluationReport,
+  type ServerEvaluationResult,
+} from './evaluationApi';

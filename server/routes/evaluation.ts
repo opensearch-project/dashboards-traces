@@ -22,13 +22,23 @@ const router = Router();
 
 /**
  * Validate evaluation request body
+ *
+ * Supports two modes:
+ * 1. By reference: { testCaseId, agentKey, modelId } — looks up test case from storage/samples
+ * 2. Inline: { testCase, agentKey, modelId } — uses provided test case object directly (for ad-hoc runs)
  */
 function validateRequest(body: any): string | null {
   if (!body || typeof body !== 'object') {
     return 'Request body must be a valid object';
   }
-  if (!body.testCaseId || typeof body.testCaseId !== 'string') {
-    return 'testCaseId is required and must be a string';
+  if (!body.testCaseId && !body.testCase) {
+    return 'Either testCaseId or testCase is required';
+  }
+  if (body.testCase && typeof body.testCase !== 'object') {
+    return 'testCase must be a valid object when provided';
+  }
+  if (body.testCase && !body.testCase.initialPrompt) {
+    return 'testCase.initialPrompt is required';
   }
   if (!body.agentKey || typeof body.agentKey !== 'string') {
     return 'agentKey is required and must be a string';
@@ -73,11 +83,18 @@ function toTestCase(sample: typeof SAMPLE_TEST_CASES[0]): TestCase {
  *
  * Request body:
  * {
- *   testCaseId: string;   // Test case ID or name
- *   agentKey: string;     // Agent key
- *   modelId: string;      // Model key
+ *   testCaseId?: string;   // Test case ID or name (required unless testCase provided)
+ *   testCase?: TestCase;   // Inline test case object (for ad-hoc runs from QuickRunModal)
+ *   agentKey: string;      // Agent key
+ *   modelId: string;       // Model key
  *   agentEndpoint?: string; // Optional endpoint override
  * }
+ *
+ * SSE events:
+ * - { type: 'started', testCase, agent }
+ * - { type: 'step', stepIndex, step: { type, content, toolName?, toolArgs? } }
+ * - { type: 'completed', report: { id, status, passFailStatus, metrics, ... }, reportId }
+ * - { type: 'error', error }
  *
  * Returns the evaluation report with trajectory, metrics, and judge results.
  * Report is automatically saved to storage if configured.
@@ -91,7 +108,8 @@ router.post('/api/evaluate', async (req: Request, res: Response) => {
   }
 
   const { testCaseId, agentKey, modelId, agentEndpoint } = req.body;
-  console.log('[EvaluationAPI] testCaseId:', testCaseId, 'agentKey:', agentKey, 'modelId:', modelId);
+  const inlineTestCase = req.body.testCase as TestCase | undefined;
+  console.log('[EvaluationAPI] testCaseId:', testCaseId, 'agentKey:', agentKey, 'modelId:', modelId, 'inline:', !!inlineTestCase);
 
   // Validate agent exists
   const config = loadConfigSync();
@@ -106,48 +124,53 @@ router.post('/api/evaluate', async (req: Request, res: Response) => {
     return res.status(400).json({ error: `Model not found: ${modelId}` });
   }
 
-  // Find test case - check sample data first, then storage
+  // Resolve test case: use inline object if provided, otherwise look up by ID
   let testCase: TestCase | null = null;
 
-  // Check sample data
-  const sampleTestCase = SAMPLE_TEST_CASES.find(tc =>
-    tc.id === testCaseId || tc.name.toLowerCase() === testCaseId.toLowerCase()
-  );
-  if (sampleTestCase) {
-    testCase = toTestCase(sampleTestCase);
-  }
+  if (inlineTestCase) {
+    // Use inline test case directly (from QuickRunModal ad-hoc runs)
+    testCase = inlineTestCase;
+  } else if (testCaseId) {
+    // Check sample data
+    const sampleTestCase = SAMPLE_TEST_CASES.find(tc =>
+      tc.id === testCaseId || tc.name.toLowerCase() === testCaseId.toLowerCase()
+    );
+    if (sampleTestCase) {
+      testCase = toTestCase(sampleTestCase);
+    }
 
-  // Check storage if not found in samples
-  if (!testCase && isStorageAvailable(req)) {
-    try {
-      const client = requireStorageClient(req);
-      const result = await client.search({
-        index: 'evals_test_cases',
-        body: {
-          size: 1,
-          sort: [{ version: { order: 'desc' } }],
-          query: {
-            bool: {
-              should: [
-                { term: { id: testCaseId } },
-                { match_phrase: { name: testCaseId } },
-              ],
-              minimum_should_match: 1,
+    // Check storage if not found in samples
+    if (!testCase && isStorageAvailable(req)) {
+      try {
+        const client = requireStorageClient(req);
+        const result = await client.search({
+          index: 'evals_test_cases',
+          body: {
+            size: 1,
+            sort: [{ version: { order: 'desc' } }],
+            query: {
+              bool: {
+                should: [
+                  { term: { id: testCaseId } },
+                  { match_phrase: { name: testCaseId } },
+                ],
+                minimum_should_match: 1,
+              },
             },
           },
-        },
-      });
-      const source = result.body.hits?.hits?.[0]?._source;
-      if (source) {
-        testCase = source as TestCase;
+        });
+        const source = result.body.hits?.hits?.[0]?._source;
+        if (source) {
+          testCase = source as TestCase;
+        }
+      } catch (e: any) {
+        console.warn('[EvaluationAPI] Storage query failed:', e.message);
       }
-    } catch (e: any) {
-      console.warn('[EvaluationAPI] Storage query failed:', e.message);
     }
   }
 
   if (!testCase) {
-    return res.status(404).json({ error: `Test case not found: ${testCaseId}` });
+    return res.status(404).json({ error: `Test case not found: ${testCaseId || 'inline'}` });
   }
 
   console.log('[EvaluationAPI] Test case found:', testCase.name);
@@ -191,11 +214,19 @@ router.post('/api/evaluate', async (req: Request, res: Response) => {
       client,
       (step) => {
         stepCount++;
-        // Send progress event for each step
+        // Send full step content for UI rendering
         res.write(`data: ${JSON.stringify({
           type: 'step',
           stepIndex: stepCount - 1,
-          step: { type: step.type, content: step.content?.substring(0, 200) },
+          step: {
+            id: step.id,
+            type: step.type,
+            content: step.content,
+            toolName: step.toolName,
+            toolArgs: step.toolArgs,
+            status: step.status,
+            timestamp: step.timestamp,
+          },
         })}\n\n`);
       }
     );
@@ -212,16 +243,19 @@ router.post('/api/evaluate', async (req: Request, res: Response) => {
 
     const report = reportResult.body._source;
 
-    // Send completed event
+    // Send completed event with reportId for navigation
     res.write(`data: ${JSON.stringify({
       type: 'completed',
+      reportId,
       report: {
         id: report.id,
         status: report.status,
         passFailStatus: report.passFailStatus,
+        metricsStatus: report.metricsStatus,
         metrics: report.metrics,
         trajectorySteps: report.trajectory?.length || 0,
         llmJudgeReasoning: report.llmJudgeReasoning,
+        improvementStrategies: report.improvementStrategies,
       },
     })}\n\n`);
 

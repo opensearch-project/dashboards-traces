@@ -50,7 +50,8 @@ export class RESTConnector extends BaseConnector {
     onProgress?: ConnectorProgressCallback,
     onRawEvent?: ConnectorRawEventCallback
   ): Promise<ConnectorResponse> {
-    const payload = this.buildPayload(request);
+    // Use pre-built payload from hook if available, otherwise build fresh
+    const payload = request.payload || this.buildPayload(request);
     const headers = this.buildAuthHeaders(auth);
 
     this.debug('Executing REST request');

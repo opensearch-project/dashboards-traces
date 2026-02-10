@@ -552,6 +552,134 @@ describe('Evaluation Service Index', () => {
       );
     });
 
+    it('should pass hook-modified payload through to connector.execute()', async () => {
+      // Hook modifies the payload (e.g., adds custom fields, modifies threadId)
+      let hookReceivedPayload: any = null;
+      const agentWithHook = {
+        ...mockAgent,
+        hooks: {
+          beforeRequest: jest.fn().mockImplementation(async (context: any) => {
+            hookReceivedPayload = context.payload;
+            // Hook modifies the payload (simulating Pulsar thread creation)
+            return {
+              ...context,
+              payload: {
+                ...context.payload,
+                customField: 'hook-added-value',
+              },
+            };
+          }),
+        },
+      };
+
+      const mockConnector = {
+        type: 'mock',
+        buildPayload: jest.fn().mockReturnValue({
+          threadId: 'thread-generated-123',
+          runId: 'run-generated-456',
+          prompt: 'test',
+        }),
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [{ type: 'response', content: 'Done', timestamp: Date.now() }],
+          runId: 'connector-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithHook,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      // Hook should have received the preview payload from buildPayload
+      expect(hookReceivedPayload).toBeDefined();
+      expect(hookReceivedPayload.threadId).toBe('thread-generated-123');
+
+      // connector.execute() should receive the hook-modified payload in request.payload
+      const executeCall = mockConnector.execute.mock.calls[0];
+      const requestArg = executeCall[1];
+      expect(requestArg.payload).toBeDefined();
+      expect(requestArg.payload.threadId).toBe('thread-generated-123');
+      expect(requestArg.payload.runId).toBe('run-generated-456');
+      expect(requestArg.payload.customField).toBe('hook-added-value');
+    });
+
+    it('should pass unmodified payload when hook returns context unchanged', async () => {
+      const agentWithHook = {
+        ...mockAgent,
+        hooks: {
+          beforeRequest: jest.fn().mockImplementation(async (context: any) => context),
+        },
+      };
+
+      const originalPayload = {
+        threadId: 'thread-from-build',
+        runId: 'run-from-build',
+        prompt: 'test',
+      };
+
+      const mockConnector = {
+        type: 'mock',
+        buildPayload: jest.fn().mockReturnValue(originalPayload),
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'connector-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        agentWithHook,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      // Even when hook doesn't modify, the payload should pass through
+      const executeCall = mockConnector.execute.mock.calls[0];
+      const requestArg = executeCall[1];
+      expect(requestArg.payload).toBe(originalPayload);
+    });
+
+    it('should not call buildPayload when no hooks configured', async () => {
+      const mockConnector = {
+        type: 'mock',
+        buildPayload: jest.fn(),
+        execute: jest.fn().mockResolvedValue({
+          trajectory: [],
+          runId: 'no-hook-run',
+          rawEvents: [],
+        }),
+      };
+
+      const mockRegistry = {
+        getForAgent: jest.fn().mockReturnValue(mockConnector),
+      };
+
+      await runEvaluationWithConnector(
+        mockAgent,
+        'claude-3-sonnet',
+        mockTestCase,
+        jest.fn(),
+        { registry: mockRegistry }
+      );
+
+      // buildPayload should NOT have been called directly (only execute calls it internally)
+      expect(mockConnector.buildPayload).not.toHaveBeenCalled();
+    });
+
     it('should pass through headers when no standard auth pattern', async () => {
       const agentWithCustomHeaders = {
         ...mockAgent,

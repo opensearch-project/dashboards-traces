@@ -59,6 +59,12 @@ export interface ConnectorRequest {
   modelId: string;
   threadId?: string;
   runId?: string;
+  /**
+   * Pre-built payload from hook processing.
+   * When set, connectors should use this directly instead of calling buildPayload().
+   * This ensures that any modifications made by beforeRequest hooks are preserved.
+   */
+  payload?: any;
 }
 
 /**

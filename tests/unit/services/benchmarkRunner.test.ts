@@ -569,6 +569,36 @@ describe('Experiment Runner', () => {
       );
     });
 
+    it('should preserve agent hooks through buildAgentConfigForRun into runEvaluationWithConnector', async () => {
+      // Add hooks to the mock config agent
+      const mockHook = jest.fn().mockImplementation(async (ctx: any) => ctx);
+      const originalAgent = mockConfig.agents[0];
+      mockConfig.agents[0] = {
+        ...originalAgent,
+        hooks: { beforeRequest: mockHook },
+      };
+
+      const testCase = createTestCase('tc-1');
+      const run = createBenchmarkRun('run-1');
+
+      mockRunEvaluationWithConnector.mockResolvedValue({
+        id: 'report-1',
+        trajectory: [],
+        metrics: {},
+      });
+      mockSaveReportWithClient.mockResolvedValue({ id: 'saved-report-1', metricsStatus: 'ready' });
+
+      await runSingleUseCase(run, testCase, mockClient);
+
+      // Verify the agent config passed to runEvaluationWithConnector includes hooks
+      const agentConfigArg = mockRunEvaluationWithConnector.mock.calls[0][0];
+      expect(agentConfigArg.hooks).toBeDefined();
+      expect(agentConfigArg.hooks.beforeRequest).toBe(mockHook);
+
+      // Restore original agent config
+      mockConfig.agents[0] = originalAgent;
+    });
+
     it('should use raw model key if not found in config', async () => {
       const testCase = createTestCase('tc-1');
       const run: BenchmarkRun = {

@@ -53,15 +53,15 @@ export class AGUIStreamingConnector extends BaseConnector {
     onProgress?: ConnectorProgressCallback,
     onRawEvent?: ConnectorRawEventCallback
   ): Promise<ConnectorResponse> {
-    const payload = this.buildPayload(request);
+    // Use pre-built payload from hook if available, otherwise build fresh
+    const hasPrebuiltPayload = !!request.payload;
+    const payload = request.payload || this.buildPayload(request);
     const headers = this.buildAuthHeaders(auth);
     const trajectory: TrajectoryStep[] = [];
     const rawEvents: AGUIEvent[] = [];
     const converter = new AGUIToTrajectoryConverter();
 
     this.debug('Executing AG-UI streaming request');
-    this.debug('Endpoint:', endpoint);
-    this.debug('Payload:', JSON.stringify(payload).substring(0, 500));
 
     await consumeSSEStream(
       endpoint,

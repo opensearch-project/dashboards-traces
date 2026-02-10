@@ -56,7 +56,11 @@ function setupStaticServing(app: Express): void {
 
   if (indexExists) {
     console.log('[StaticServer] Serving frontend from dist/ folder');
-    app.use(express.static(distPath));
+    // index: false prevents express.static from serving index.html for directory
+    // requests (like / or /benchmarks/...). This lets the SPA fallback middleware
+    // (registered after API routes) handle all HTML navigation instead.
+    // Without this, direct navigation to deep links returns 404.
+    app.use(express.static(distPath, { index: false }));
   } else {
     console.log('[StaticServer] dist/index.html not found - API-only mode');
   }
@@ -73,7 +77,12 @@ export function setupSpaFallback(app: Express): void {
   if (!fs.existsSync(indexPath)) return;
 
   app.use((req: Request, res: Response, next: NextFunction) => {
+    // Skip API routes and health checks
     if (req.path.startsWith('/api/') || req.path === '/health') {
+      return next();
+    }
+    // Only serve index.html for GET/HEAD requests (not OPTIONS, POST, etc.)
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
       return next();
     }
     res.sendFile(indexPath, (err) => {

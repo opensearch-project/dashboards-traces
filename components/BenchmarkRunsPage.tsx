@@ -21,7 +21,6 @@ import { executeBenchmarkRun } from '@/services/client';
 import { useBenchmarkCancellation } from '@/hooks/useBenchmarkCancellation';
 import { Benchmark, BenchmarkRun, EvaluationReport, TestCase, BenchmarkProgress, BenchmarkStartedEvent } from '@/types';
 import { DEFAULT_CONFIG } from '@/lib/constants';
-import { isBrowserCompatible } from '@/lib/agentUtils';
 import { getLabelColor, formatDate, getModelName } from '@/lib/utils';
 import { calculateRunStats } from '@/lib/runStats';
 import {
@@ -919,19 +918,14 @@ export const BenchmarkRunsPage: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DEFAULT_CONFIG.agents.map(agent => {
-                        const isAvailable = isBrowserCompatible(agent);
-                        return (
-                          <SelectItem
-                            key={agent.key}
-                            value={agent.key}
-                            disabled={!isAvailable}
-                          >
-                            {agent.name}
-                            {!isAvailable && <span className="text-xs text-muted-foreground ml-1">(CLI only)</span>}
-                          </SelectItem>
-                        );
-                      })}
+                      {DEFAULT_CONFIG.agents.map(agent => (
+                        <SelectItem
+                          key={agent.key}
+                          value={agent.key}
+                        >
+                          {agent.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
