@@ -52,13 +52,14 @@ export const TracesPage: React.FC = () => {
 
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get unique service names from agents config
-  const agentOptions = useMemo(() => {
+  // Get unique service names from agents config (no deps — recomputes when
+  // parent App re-renders after refreshConfig(), keeping custom agents visible)
+  const agentOptions = (() => {
     const agents = DEFAULT_CONFIG.agents
       .filter(a => a.enabled !== false)
       .map(a => ({ value: a.name, label: a.name }));
     return [{ value: 'all', label: 'All Agents' }, ...agents];
-  }, []);
+  })();
 
   // Process spans into tree
   const spanTree = useMemo(() => processSpansIntoTree(spans), [spans]);

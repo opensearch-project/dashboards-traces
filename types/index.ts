@@ -49,6 +49,7 @@ export interface AgentConfig {
   connectorType?: ConnectorProtocol; // Connector protocol (defaults to 'agui-streaming')
   connectorConfig?: Record<string, any>; // Connector-specific configuration
   hooks?: AgentHooks; // Lifecycle hooks for custom setup/transform logic
+  isCustom?: boolean; // True for user-added custom endpoints (not from config file)
 }
 
 export interface AppConfig {

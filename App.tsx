@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { refreshConfig } from '@/lib/constants';
+import { refreshConfig, subscribeConfigChange } from '@/lib/constants';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { BenchmarksPage } from './components/BenchmarksPage';
@@ -25,10 +25,13 @@ function ExperimentRunsRedirect() {
 
 function App() {
   // Fetch server config on mount so custom agents/models appear in the UI.
-  // The state toggle triggers a re-render so children see the updated DEFAULT_CONFIG.
-  const [, setConfigReady] = useState(false);
+  // Subscribe to config changes so that any later refreshConfig() call
+  // (e.g., from SettingsPage after adding a custom endpoint) re-renders
+  // the entire tree, making updated agents visible in all dropdowns.
+  const [, setConfigVersion] = useState(0);
   useEffect(() => {
-    refreshConfig().then(() => setConfigReady(true));
+    refreshConfig();
+    return subscribeConfigChange(() => setConfigVersion(v => v + 1));
   }, []);
 
   return (

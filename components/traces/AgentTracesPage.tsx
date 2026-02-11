@@ -153,13 +153,14 @@ export const AgentTracesPage: React.FC = () => {
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [traceViewMode, setTraceViewMode] = useState<ViewMode>('timeline');
 
-  // Get unique service names from agents config
-  const agentOptions = useMemo(() => {
+  // Get unique service names from agents config (no memo — recomputes when
+  // parent App re-renders after refreshConfig(), keeping custom agents visible)
+  const agentOptions = (() => {
     const agents = DEFAULT_CONFIG.agents
       .filter(a => a.enabled !== false)
       .map(a => ({ value: a.name, label: a.name }));
     return [{ value: 'all', label: 'All Agents' }, ...agents];
-  }, []);
+  })();
 
   // Time range options
   const timeRangeOptions = [

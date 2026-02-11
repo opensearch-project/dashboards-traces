@@ -152,9 +152,24 @@ export const MOCK_TOOLS = [
 ];
 
 /**
+ * Config change listeners.
+ * App.tsx subscribes so that any refreshConfig() call triggers a
+ * React re-render, making updated agents/models visible in all components.
+ */
+type ConfigChangeListener = () => void;
+const configListeners = new Set<ConfigChangeListener>();
+
+/**
+ * Subscribe to config changes. Returns an unsubscribe function.
+ */
+export function subscribeConfigChange(listener: ConfigChangeListener): () => void {
+  configListeners.add(listener);
+  return () => { configListeners.delete(listener); };
+}
+
+/**
  * Fetch agent and model config from the server and update DEFAULT_CONFIG in place.
- * All components already read DEFAULT_CONFIG at render time, so mutating it
- * before a re-render is sufficient — no prop drilling or context needed.
+ * Notifies subscribers so React trees re-render with the new values.
  */
 export async function refreshConfig(): Promise<void> {
   try {
@@ -177,4 +192,5 @@ export async function refreshConfig(): Promise<void> {
   } catch {
     // Server unreachable — keep hardcoded defaults
   }
+  configListeners.forEach(fn => fn());
 }

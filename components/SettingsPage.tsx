@@ -29,7 +29,7 @@ import {
   clearObservabilityConfig,
   type ConfigStatus,
 } from '@/lib/dataSourceConfig';
-import { DEFAULT_CONFIG } from '@/lib/constants';
+import { DEFAULT_CONFIG, refreshConfig } from '@/lib/constants';
 import { ENV_CONFIG } from '@/lib/config';
 
 interface StorageStats {
@@ -46,21 +46,15 @@ interface AgentEndpoint {
   endpoint: string;
 }
 
-const STORAGE_KEY = 'agenteval_custom_endpoints';
+const LEGACY_STORAGE_KEY = 'agenteval_custom_endpoints';
 
-// Load custom endpoints from localStorage
-function loadCustomEndpoints(): AgentEndpoint[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Save custom endpoints to localStorage
-function saveCustomEndpoints(endpoints: AgentEndpoint[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(endpoints));
+/**
+ * Derive the custom endpoint list from DEFAULT_CONFIG.agents (populated by refreshConfig).
+ */
+function getCustomEndpointsFromConfig(): AgentEndpoint[] {
+  return DEFAULT_CONFIG.agents
+    .filter(a => a.isCustom)
+    .map(a => ({ id: a.key, name: a.name, endpoint: a.endpoint }));
 }
 
 export const SettingsPage: React.FC = () => {
@@ -174,8 +168,34 @@ export const SettingsPage: React.FC = () => {
       setLocalCounts(getLocalStorageCounts());
     }
 
-    // Load custom agent endpoints
-    setCustomEndpoints(loadCustomEndpoints());
+    // Migrate legacy localStorage custom endpoints to server, then derive from config
+    const initCustomEndpoints = async () => {
+      try {
+        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacy) {
+          const legacyEndpoints: AgentEndpoint[] = JSON.parse(legacy);
+          for (const ep of legacyEndpoints) {
+            try {
+              await fetch(`${ENV_CONFIG.backendUrl}/api/agents/custom`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: ep.name, endpoint: ep.endpoint }),
+              });
+            } catch {
+              // Best effort — skip endpoints that fail to migrate
+            }
+          }
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+        }
+      } catch {
+        // Ignore parse errors on legacy data
+      }
+
+      await refreshConfig();
+      setCustomEndpoints(getCustomEndpointsFromConfig());
+    };
+
+    initCustomEndpoints();
   }, [loadStorageStats, loadConfigStatus]);
 
   // Validate URL format
@@ -193,7 +213,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   // Agent endpoints handlers
-  const handleAddEndpoint = () => {
+  const handleAddEndpoint = async () => {
     if (!newEndpointName.trim() || !newEndpointUrl.trim()) return;
 
     const urlError = validateEndpointUrl(newEndpointUrl);
@@ -202,15 +222,23 @@ export const SettingsPage: React.FC = () => {
       return;
     }
 
-    const newEndpoint: AgentEndpoint = {
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: newEndpointName.trim(),
-      endpoint: newEndpointUrl.trim(),
-    };
-
-    const updated = [...customEndpoints, newEndpoint];
-    setCustomEndpoints(updated);
-    saveCustomEndpoints(updated);
+    try {
+      const response = await fetch(`${ENV_CONFIG.backendUrl}/api/agents/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newEndpointName.trim(), endpoint: newEndpointUrl.trim() }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        setEndpointUrlError(err.error || 'Failed to add endpoint');
+        return;
+      }
+      await refreshConfig();
+      setCustomEndpoints(getCustomEndpointsFromConfig());
+    } catch (error) {
+      setEndpointUrlError(error instanceof Error ? error.message : 'Failed to add endpoint');
+      return;
+    }
 
     setNewEndpointName('');
     setNewEndpointUrl('');
@@ -218,7 +246,7 @@ export const SettingsPage: React.FC = () => {
     setIsAddingEndpoint(false);
   };
 
-  const handleUpdateEndpoint = (id: string) => {
+  const handleUpdateEndpoint = async (id: string) => {
     if (!newEndpointName.trim() || !newEndpointUrl.trim()) return;
 
     const urlError = validateEndpointUrl(newEndpointUrl);
@@ -227,26 +255,42 @@ export const SettingsPage: React.FC = () => {
       return;
     }
 
-    const updated = customEndpoints.map(ep =>
-      ep.id === id
-        ? { ...ep, name: newEndpointName.trim(), endpoint: newEndpointUrl.trim() }
-        : ep
-    );
+    try {
+      // Delete the old one, then create a new one
+      await fetch(`${ENV_CONFIG.backendUrl}/api/agents/custom/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${ENV_CONFIG.backendUrl}/api/agents/custom`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newEndpointName.trim(), endpoint: newEndpointUrl.trim() }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        setEndpointUrlError(err.error || 'Failed to update endpoint');
+        return;
+      }
+      await refreshConfig();
+      setCustomEndpoints(getCustomEndpointsFromConfig());
+    } catch (error) {
+      setEndpointUrlError(error instanceof Error ? error.message : 'Failed to update endpoint');
+      return;
+    }
 
-    setCustomEndpoints(updated);
-    saveCustomEndpoints(updated);
     setEditingEndpointId(null);
     setNewEndpointName('');
     setNewEndpointUrl('');
     setEndpointUrlError(null);
   };
 
-  const handleDeleteEndpoint = (id: string) => {
+  const handleDeleteEndpoint = async (id: string) => {
     if (!window.confirm('Remove this endpoint?')) return;
 
-    const updated = customEndpoints.filter(ep => ep.id !== id);
-    setCustomEndpoints(updated);
-    saveCustomEndpoints(updated);
+    try {
+      await fetch(`${ENV_CONFIG.backendUrl}/api/agents/custom/${id}`, { method: 'DELETE' });
+      await refreshConfig();
+      setCustomEndpoints(getCustomEndpointsFromConfig());
+    } catch (error) {
+      console.error('Failed to delete custom endpoint:', error);
+    }
   };
 
   const startEditEndpoint = (endpoint: AgentEndpoint) => {
@@ -551,7 +595,7 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground uppercase tracking-wide">Built-in Agents</Label>
 
-            {DEFAULT_CONFIG.agents.map((agent) => (
+            {DEFAULT_CONFIG.agents.filter(a => !a.isCustom).map((agent) => (
                 <div
                   key={agent.key}
                   className="p-3 border rounded-lg bg-muted/5 flex items-start justify-between gap-3"
@@ -589,7 +633,7 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-muted-foreground mb-3">
-              Add custom agent endpoints. These are stored in browser localStorage.
+              Add custom agent endpoints. These are stored on the server (in memory, lost on restart).
             </p>
           </div>
 

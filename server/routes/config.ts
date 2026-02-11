@@ -13,21 +13,41 @@
 
 import { Router, Request, Response } from 'express';
 import { loadConfigSync } from '@/lib/config/index';
-import type { ModelConfig } from '@/types/index.js';
+import type { AgentConfig, ModelConfig } from '@/types/index.js';
+import { addCustomAgent, removeCustomAgent, getCustomAgents } from '@/server/services/customAgentStore';
 
 const router = Router();
 
 /**
- * GET /api/agents - List all configured agents
+ * Validate a URL string (must be http or https).
+ * Returns an error message or null if valid.
+ */
+function validateEndpointUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return 'URL must use http or https protocol';
+    }
+    return null;
+  } catch {
+    return 'Invalid URL format';
+  }
+}
+
+/**
+ * GET /api/agents - List all configured agents (built-in + custom)
  *
- * Returns the list of agents from the runtime configuration.
- * Used by CLI `list agents` command.
+ * Returns the list of agents from the runtime configuration merged
+ * with any custom agents added via the UI.
+ * Used by CLI `list agents` command and frontend refreshConfig().
  */
 router.get('/api/agents', (req: Request, res: Response) => {
   try {
     const config = loadConfigSync();
     // Strip hooks (functions can't be serialized to JSON)
-    const agents = config.agents.map(({ hooks, ...rest }) => rest);
+    const configAgents = config.agents.map(({ hooks, ...rest }) => rest);
+    const customAgents = getCustomAgents();
+    const agents = [...configAgents, ...customAgents];
     res.json({
       agents,
       total: agents.length,
@@ -35,6 +55,71 @@ router.get('/api/agents', (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('[ConfigAPI] List agents failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/agents/custom - Add a custom agent endpoint
+ *
+ * Body: { name: string, endpoint: string }
+ * Returns 201 with the created AgentConfig.
+ */
+router.post('/api/agents/custom', (req: Request, res: Response) => {
+  try {
+    const { name, endpoint } = req.body || {};
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'name is required' });
+      return;
+    }
+
+    if (!endpoint || typeof endpoint !== 'string' || !endpoint.trim()) {
+      res.status(400).json({ error: 'endpoint is required' });
+      return;
+    }
+
+    const urlError = validateEndpointUrl(endpoint.trim());
+    if (urlError) {
+      res.status(400).json({ error: urlError });
+      return;
+    }
+
+    const key = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const agent: AgentConfig = {
+      key,
+      name: name.trim(),
+      endpoint: endpoint.trim(),
+      isCustom: true,
+      connectorType: 'agui-streaming',
+      models: [],
+      headers: {},
+    };
+
+    addCustomAgent(agent);
+    res.status(201).json({ agent });
+  } catch (error: any) {
+    console.error('[ConfigAPI] Add custom agent failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/agents/custom/:id - Remove a custom agent endpoint
+ *
+ * Returns 204 on success, 404 if not found.
+ */
+router.delete('/api/agents/custom/:id', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const removed = removeCustomAgent(id);
+    if (!removed) {
+      res.status(404).json({ error: 'Custom agent not found' });
+      return;
+    }
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('[ConfigAPI] Delete custom agent failed:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
