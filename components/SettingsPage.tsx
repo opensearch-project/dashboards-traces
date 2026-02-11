@@ -633,7 +633,7 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-muted-foreground mb-3">
-              Add custom agent endpoints. These are stored on the server (in memory, lost on restart).
+              Add custom agent endpoints. These are persisted to agent-health.config.json in your project directory.
             </p>
           </div>
 

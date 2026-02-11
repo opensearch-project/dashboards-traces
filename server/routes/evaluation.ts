@@ -16,6 +16,7 @@ import { isStorageAvailable, requireStorageClient } from '../middleware/storageC
 import { SAMPLE_TEST_CASES } from '../../cli/demo/sampleTestCases.js';
 import { runSingleUseCase } from '../../services/benchmarkRunner.js';
 import { loadConfigSync } from '../../lib/config/index.js';
+import { getCustomAgents } from '../services/customAgentStore.js';
 import type { BenchmarkRun, TestCase } from '../../types/index.js';
 
 const router = Router();
@@ -111,9 +112,10 @@ router.post('/api/evaluate', async (req: Request, res: Response) => {
   const inlineTestCase = req.body.testCase as TestCase | undefined;
   console.log('[EvaluationAPI] testCaseId:', testCaseId, 'agentKey:', agentKey, 'modelId:', modelId, 'inline:', !!inlineTestCase);
 
-  // Validate agent exists
+  // Validate agent exists (check both built-in and custom agents)
   const config = loadConfigSync();
-  const agent = config.agents.find(a => a.key === agentKey || a.name.toLowerCase() === agentKey.toLowerCase());
+  const allAgents = [...config.agents, ...getCustomAgents()];
+  const agent = allAgents.find(a => a.key === agentKey || a.name.toLowerCase() === agentKey.toLowerCase());
   if (!agent) {
     return res.status(400).json({ error: `Agent not found: ${agentKey}` });
   }

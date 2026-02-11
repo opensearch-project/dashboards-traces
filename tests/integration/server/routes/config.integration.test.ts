@@ -184,6 +184,78 @@ describe('Config Endpoints Integration Tests', () => {
     );
   });
 
+  describe('Custom Agent Persistence', () => {
+    const TEST_AGENT = {
+      name: 'Integration Test Agent',
+      endpoint: 'http://integration-test.example.com:9999',
+    };
+
+    // Clean up after tests regardless of pass/fail
+    afterAll(async () => {
+      if (!backendAvailable) return;
+      // Best-effort cleanup: list agents and remove any with our test name
+      try {
+        const response = await fetch(`${config.backendUrl}/api/agents`);
+        const data = await response.json();
+        const testAgent = data.agents.find(
+          (a: { name: string }) => a.name === TEST_AGENT.name,
+        );
+        if (testAgent) {
+          await fetch(`${config.backendUrl}/api/agents/custom/${testAgent.key}`, {
+            method: 'DELETE',
+          });
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+    }, TEST_TIMEOUT);
+
+    it(
+      'should persist a custom agent through the full lifecycle',
+      async () => {
+        if (!backendAvailable) return;
+
+        // 1. Create custom agent
+        const createResponse = await fetch(`${config.backendUrl}/api/agents/custom`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(TEST_AGENT),
+        });
+        expect(createResponse.status).toBe(201);
+        const created = await createResponse.json();
+        expect(created).toHaveProperty('key');
+        expect(created.name).toBe(TEST_AGENT.name);
+        expect(created.endpoint).toBe(TEST_AGENT.endpoint);
+        expect(created.isCustom).toBe(true);
+
+        // 2. Verify it appears in the agents list
+        const listResponse = await fetch(`${config.backendUrl}/api/agents`);
+        const listData = await listResponse.json();
+        const found = listData.agents.find(
+          (a: { key: string }) => a.key === created.key,
+        );
+        expect(found).toBeDefined();
+        expect(found.name).toBe(TEST_AGENT.name);
+
+        // 3. Delete the agent
+        const deleteResponse = await fetch(
+          `${config.backendUrl}/api/agents/custom/${created.key}`,
+          { method: 'DELETE' },
+        );
+        expect(deleteResponse.status).toBe(204);
+
+        // 4. Verify it no longer appears
+        const listAfterDelete = await fetch(`${config.backendUrl}/api/agents`);
+        const dataAfterDelete = await listAfterDelete.json();
+        const notFound = dataAfterDelete.agents.find(
+          (a: { key: string }) => a.key === created.key,
+        );
+        expect(notFound).toBeUndefined();
+      },
+      TEST_TIMEOUT,
+    );
+  });
+
   describe('GET /api/models', () => {
     it(
       'should return 200 with models array',

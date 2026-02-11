@@ -10,6 +10,7 @@
 import { Request, Response, Router } from 'express';
 import { proxyAgentRequest, validateAgentRequest } from '../services/agentService';
 import { loadConfigSync } from '@/lib/config/index';
+import { getCustomAgents } from '@/server/services/customAgentStore';
 import { executeBeforeRequestHook } from '@/lib/hooks';
 
 const router = Router();
@@ -34,7 +35,8 @@ router.post('/api/agent', async (req: Request, res: Response) => {
     // Execute beforeRequest hook if agent has one configured
     if (agentKey) {
       const config = loadConfigSync();
-      const agentConfig = config.agents.find(a => a.key === agentKey);
+      const allAgents = [...config.agents, ...getCustomAgents()];
+      const agentConfig = allAgents.find(a => a.key === agentKey);
       if (agentConfig?.hooks) {
         const hookResult = await executeBeforeRequestHook(
           agentConfig.hooks,

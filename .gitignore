@@ -17,6 +17,7 @@ agent-health.yaml
 agent-health.config.ts
 agent-health.config.js
 agent-health.config.mjs
+agent-health.config.json
 
 /cli/dist
 

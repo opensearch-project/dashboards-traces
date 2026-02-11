@@ -157,6 +157,64 @@ test.describe('Agent Endpoints Section', () => {
   });
 });
 
+test.describe('Custom Endpoint Persistence', () => {
+  const AGENT_NAME = 'E2E Persistence Test Agent';
+  const AGENT_URL = 'http://e2e-test.example.com:7777';
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/settings');
+    await page.waitForSelector('[data-testid="settings-page"]', { timeout: 30000 });
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Best-effort cleanup: delete the test agent if it exists
+    await page.goto('/settings');
+    await page.waitForSelector('[data-testid="settings-page"]', { timeout: 30000 });
+    const deleteBtn = page.locator(`button[aria-label="Remove ${AGENT_NAME}"]`).first();
+    if (await deleteBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await deleteBtn.click();
+      await page.waitForTimeout(500);
+    }
+  });
+
+  test('should persist a custom endpoint across page reload', async ({ page }) => {
+    // 1. Add a custom endpoint
+    const addButton = page.locator('button:has-text("Add")').first();
+    await addButton.click();
+    await page.waitForTimeout(500);
+
+    const nameInput = page.locator('input#new-endpoint-name');
+    await nameInput.fill(AGENT_NAME);
+
+    const urlInput = page.locator('input#new-endpoint-url');
+    await urlInput.fill(AGENT_URL);
+
+    const saveButton = page.locator('button:has-text("Save")').first();
+    await saveButton.click();
+    await page.waitForTimeout(1000);
+
+    // 2. Verify endpoint appears
+    await expect(page.locator(`text=${AGENT_NAME}`).first()).toBeVisible();
+
+    // 3. Reload the page (tests server-side persistence)
+    await page.reload();
+    await page.waitForSelector('[data-testid="settings-page"]', { timeout: 30000 });
+
+    // 4. Verify endpoint still appears after reload
+    await expect(page.locator(`text=${AGENT_NAME}`).first()).toBeVisible();
+
+    // 5. Delete the endpoint
+    const deleteBtn = page.locator(`button[aria-label="Remove ${AGENT_NAME}"]`).first();
+    if (await deleteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await deleteBtn.click();
+      await page.waitForTimeout(500);
+    }
+
+    // 6. Verify it's gone
+    await expect(page.locator(`text=${AGENT_NAME}`)).not.toBeVisible();
+  });
+});
+
 test.describe('Evaluation Storage Section', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/settings');
