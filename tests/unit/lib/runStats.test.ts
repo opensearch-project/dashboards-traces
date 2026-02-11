@@ -105,7 +105,7 @@ describe('runStats', () => {
       expect(stats.failed).toBe(0);
       expect(stats.pending).toBe(2);
       expect(stats.total).toBe(3);
-      expect(stats.passRate).toBe(100); // 1/1 completed passed
+      expect(stats.passRate).toBe(33); // 1/3 total test cases passed
     });
 
     it('should treat failed and cancelled results as failed', () => {

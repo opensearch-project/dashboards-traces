@@ -13,9 +13,12 @@
  * 1. Get report IDs from run.results[testCaseId].reportId
  * 2. Fetch each report by ID
  * 3. Count passFailStatus from the fetched reports
+ *
+ * For performance optimization, stats are denormalized onto BenchmarkRun.stats
+ * and updated incrementally as test cases complete.
  */
 
-import type { BenchmarkRun, EvaluationReport } from '@/types/index.js';
+import type { BenchmarkRun, EvaluationReport, RunStats as RunStatsType } from '@/types/index.js';
 
 /**
  * Statistics for a benchmark run
@@ -97,9 +100,8 @@ export function calculateRunStats(
     }
   });
 
-  // Calculate pass rate (percentage of completed test cases that passed)
-  const completed = passed + failed;
-  const passRate = completed > 0 ? Math.round((passed / completed) * 100) : 0;
+  // Calculate pass rate (percentage of total test cases that passed)
+  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
 
   return {
     passed,
@@ -126,4 +128,31 @@ export function getReportIdsFromRun(run: BenchmarkRun): string[] {
   });
 
   return Array.from(reportIds);
+}
+
+/**
+ * Compute stats from a benchmark run and its reports.
+ * This is the server-side version that returns the denormalized stats object.
+ *
+ * @param run - The benchmark run to compute stats for
+ * @param reports - Array of reports for this run
+ * @returns Denormalized stats object (passed, failed, pending, total)
+ */
+export function computeRunStatsFromReports(
+  run: BenchmarkRun,
+  reports: EvaluationReport[]
+): RunStatsType {
+  const reportsMap: Record<string, EvaluationReport | null> = {};
+  reports.forEach(report => {
+    reportsMap[report.id] = report;
+  });
+
+  const fullStats = calculateRunStats(run, reportsMap);
+
+  return {
+    passed: fullStats.passed,
+    failed: fullStats.failed,
+    pending: fullStats.pending,
+    total: fullStats.total,
+  };
 }

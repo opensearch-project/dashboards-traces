@@ -35,6 +35,9 @@ export function getRealTestCaseMeta(testCaseId: string): MockTestCaseMeta | unde
 
 /**
  * Calculate aggregate metrics for a single run
+ *
+ * Uses run.stats (denormalized) for pass/fail counts when available,
+ * falling back to computing from reports for accuracy and older data.
  */
 export function calculateRunAggregates(
   run: ExperimentRun,
@@ -46,6 +49,14 @@ export function calculateRunAggregates(
   let failedCount = 0;
   let completedCount = 0;
 
+  // Fast path: use denormalized stats if available
+  const hasStats = run.stats && typeof run.stats.passed === 'number';
+  if (hasStats) {
+    passedCount = run.stats!.passed;
+    failedCount = run.stats!.failed;
+  }
+
+  // Always calculate accuracy from reports (not stored in run.stats)
   for (const testCaseId of testCaseIds) {
     const result = run.results[testCaseId];
     if (result.status === 'completed' || result.status === 'failed') {
@@ -54,17 +65,19 @@ export function calculateRunAggregates(
         completedCount++;
         totalAccuracy += report.metrics?.accuracy ?? 0;
 
-        if (report.passFailStatus === 'passed') {
-          passedCount++;
-        } else {
-          failedCount++;
+        // Fallback: count pass/fail from reports if stats not available
+        if (!hasStats) {
+          if (report.passFailStatus === 'passed') {
+            passedCount++;
+          } else {
+            failedCount++;
+          }
         }
       }
     }
   }
 
   const count = completedCount || 1; // Avoid division by zero
-  const total = passedCount + failedCount;
 
   return {
     runId: run.id,
@@ -76,7 +89,7 @@ export function calculateRunAggregates(
     passedCount,
     failedCount,
     avgAccuracy: Math.round(totalAccuracy / count),
-    passRatePercent: total > 0 ? Math.round((passedCount / total) * 100) : 0,
+    passRatePercent: testCaseIds.length > 0 ? Math.round((passedCount / testCaseIds.length) * 100) : 0,
     // Trace metrics will be populated separately via fetchBatchMetrics
     totalTokens: undefined,
     totalInputTokens: undefined,

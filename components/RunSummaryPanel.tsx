@@ -54,7 +54,7 @@ export const RunSummaryPanel: React.FC<RunSummaryPanelProps> = ({
       }
     });
 
-    const total = passed + failed;
+    const total = Object.keys(run.results || {}).length;
     const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
     const avgAccuracy = reportCount > 0 ? Math.round(totalAccuracy / reportCount) : 0;
 

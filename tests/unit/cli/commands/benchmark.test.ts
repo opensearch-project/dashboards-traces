@@ -424,7 +424,7 @@ describe('Benchmark Command - Helper Functions', () => {
       expect(stats.failed).toBe(2);  // tc-2 (failed evaluation) + tc-3 (cancelled)
       expect(stats.pending).toBe(1); // tc-4
       expect(stats.total).toBe(4);
-      expect(stats.passRate).toBe(33); // 1/3 completed (excluding pending) = 33%
+      expect(stats.passRate).toBe(25); // 1/4 total test cases = 25%
     });
   });
 
