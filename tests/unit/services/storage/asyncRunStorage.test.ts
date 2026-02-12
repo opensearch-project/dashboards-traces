@@ -125,24 +125,34 @@ describe('AsyncRunStorage', () => {
   });
 
   describe('getReportsByTestCase', () => {
-    it('returns reports for a test case', async () => {
+    it('returns reports and total for a test case', async () => {
       const mockRuns = [createMockStorageRun('run-1'), createMockStorageRun('run-2')];
-      mockOsRuns.getByTestCase.mockResolvedValue(mockRuns);
+      mockOsRuns.getByTestCase.mockResolvedValue({ runs: mockRuns, total: 2 });
 
       const result = await asyncRunStorage.getReportsByTestCase('tc-1');
 
-      expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 100);
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('run-1');
-      expect(result[1].id).toBe('run-2');
+      expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 100, 0);
+      expect(result.reports).toHaveLength(2);
+      expect(result.reports[0].id).toBe('run-1');
+      expect(result.reports[1].id).toBe('run-2');
+      expect(result.total).toBe(2);
     });
 
     it('respects limit option', async () => {
-      mockOsRuns.getByTestCase.mockResolvedValue([]);
+      mockOsRuns.getByTestCase.mockResolvedValue({ runs: [], total: 0 });
 
       await asyncRunStorage.getReportsByTestCase('tc-1', { limit: 50 });
 
-      expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 50);
+      expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 50, 0);
+    });
+
+    it('passes offset to opensearch client', async () => {
+      mockOsRuns.getByTestCase.mockResolvedValue({ runs: [], total: 150 });
+
+      const result = await asyncRunStorage.getReportsByTestCase('tc-1', { limit: 100, offset: 100 });
+
+      expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 100, 100);
+      expect(result.total).toBe(150);
     });
   });
 
@@ -342,13 +352,12 @@ describe('AsyncRunStorage', () => {
 
   describe('getReportCountByTestCase', () => {
     it('returns count for a specific test case', async () => {
-      const mockRuns = [createMockStorageRun('run-1'), createMockStorageRun('run-2')];
-      mockOsRuns.getByTestCase.mockResolvedValue(mockRuns);
+      mockOsRuns.getByTestCase.mockResolvedValue({ runs: [], total: 42 });
 
       const result = await asyncRunStorage.getReportCountByTestCase('tc-1');
 
       expect(mockOsRuns.getByTestCase).toHaveBeenCalledWith('tc-1', 0);
-      expect(result).toBe(2);
+      expect(result).toBe(42);
     });
   });
 

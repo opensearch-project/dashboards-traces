@@ -192,10 +192,10 @@ class AsyncRunStorage {
   async getReportsByTestCase(
     testCaseId: string,
     options: GetReportsOptions = {}
-  ): Promise<EvaluationReport[]> {
-    const { limit = 100 } = options;
-    const stored = await opensearchRuns.getByTestCase(testCaseId, limit);
-    return stored.map(toTestCaseRun);
+  ): Promise<{ reports: EvaluationReport[]; total: number }> {
+    const { limit = 100, offset = 0 } = options;
+    const result = await opensearchRuns.getByTestCase(testCaseId, limit, offset);
+    return { reports: result.runs.map(toTestCaseRun), total: result.total };
   }
 
   /**
@@ -277,8 +277,8 @@ class AsyncRunStorage {
    * Get report count for a specific test case
    */
   async getReportCountByTestCase(testCaseId: string): Promise<number> {
-    const reports = await opensearchRuns.getByTestCase(testCaseId, 0);
-    return reports.length;
+    const result = await opensearchRuns.getByTestCase(testCaseId, 0);
+    return result.total;
   }
 
   // ==================== Benchmark-Specific Operations ====================

@@ -67,10 +67,11 @@ export const ReportsPage: React.FC = () => {
       try {
         let allReports: EvaluationReport[];
         if (selectedTestCase) {
-          allReports = await asyncRunStorage.getReportsByTestCase(selectedTestCase, {
+          const { reports: fetchedReports } = await asyncRunStorage.getReportsByTestCase(selectedTestCase, {
             sortBy,
             order: sortOrder,
           });
+          allReports = fetchedReports;
         } else {
           allReports = await asyncRunStorage.getAllReports({ sortBy, order: sortOrder });
         }
@@ -124,11 +125,14 @@ export const ReportsPage: React.FC = () => {
         : testCases.filter(tc => tc.category === filterCategory);
 
       const stats = await Promise.all(
-        filteredTestCases.map(async tc => ({
-          testCase: tc,
-          count: (await asyncRunStorage.getReportsByTestCase(tc.id, { limit: 1 })).length > 0 ? 1 : 0,
-          reports: await asyncRunStorage.getReportsByTestCase(tc.id, { limit: 1 }),
-        }))
+        filteredTestCases.map(async tc => {
+          const { reports: tcReports, total } = await asyncRunStorage.getReportsByTestCase(tc.id, { limit: 1 });
+          return {
+            testCase: tc,
+            count: total > 0 ? 1 : 0,
+            reports: tcReports,
+          };
+        })
       );
       setTestCaseStats(stats);
     };

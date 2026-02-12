@@ -51,8 +51,8 @@ export const EvalsPage: React.FC = () => {
       const counts: Record<string, number> = {};
       await Promise.all(
         tcs.map(async (tc) => {
-          const reports = await asyncRunStorage.getReportsByTestCase(tc.id, { limit: 1 });
-          counts[tc.id] = reports.length;
+          const { total } = await asyncRunStorage.getReportsByTestCase(tc.id, { limit: 1 });
+          counts[tc.id] = total;
         })
       );
       setRunCounts(counts);

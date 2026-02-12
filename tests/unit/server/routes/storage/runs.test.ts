@@ -469,6 +469,7 @@ describe('Runs Storage Routes', () => {
       mockSearch.mockResolvedValue({
         body: {
           hits: {
+            total: { value: 1 },
             hits: [
               { _source: { id: 'run-123', testCaseId: 'tc-123' } },
             ],
@@ -485,6 +486,8 @@ describe('Runs Storage Routes', () => {
         expect.objectContaining({
           runs: expect.any(Array),
           total: expect.any(Number),
+          size: 100,
+          from: 0,
         })
       );
     });
@@ -504,6 +507,81 @@ describe('Runs Storage Routes', () => {
           ]),
         })
       );
+    });
+
+    it('should pass from parameter to OpenSearch query', async () => {
+      mockSearch.mockResolvedValue({
+        body: {
+          hits: {
+            total: { value: 150 },
+            hits: [
+              { _source: { id: 'run-101', testCaseId: 'tc-123' } },
+            ],
+          },
+        },
+      });
+
+      const { req, res } = createMocks({ testCaseId: 'tc-123' }, {}, { size: '100', from: '100' });
+      const handler = getRouteHandler(runsRoutes, 'get', '/api/storage/runs/by-test-case/:testCaseId');
+
+      await handler(req, res);
+
+      // Verify from is passed to OpenSearch
+      expect(mockSearch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            from: 100,
+            size: 100,
+          }),
+        })
+      );
+    });
+
+    it('should return real total reflecting all matching documents', async () => {
+      mockSearch.mockResolvedValue({
+        body: {
+          hits: {
+            total: { value: 236 },
+            hits: [
+              { _source: { id: 'run-1', testCaseId: 'demo-test-case-1' } },
+            ],
+          },
+        },
+      });
+
+      const { req, res } = createMocks({ testCaseId: 'demo-test-case-1' });
+      const handler = getRouteHandler(runsRoutes, 'get', '/api/storage/runs/by-test-case/:testCaseId');
+
+      await handler(req, res);
+
+      const response = (res.json as jest.Mock).mock.calls[0][0];
+      // Total = 236 (real) + 1 (sample for demo-test-case-1)
+      expect(response.total).toBe(237);
+    });
+
+    it('should only include sample data on first page (from=0)', async () => {
+      mockSearch.mockResolvedValue({
+        body: {
+          hits: {
+            total: { value: 150 },
+            hits: [
+              { _source: { id: 'run-101', testCaseId: 'demo-test-case-1' } },
+            ],
+          },
+        },
+      });
+
+      const { req, res } = createMocks({ testCaseId: 'demo-test-case-1' }, {}, { from: '100' });
+      const handler = getRouteHandler(runsRoutes, 'get', '/api/storage/runs/by-test-case/:testCaseId');
+
+      await handler(req, res);
+
+      const response = (res.json as jest.Mock).mock.calls[0][0];
+      // On page 2 (from=100), sample data should NOT be included in runs
+      const sampleRunIds = response.runs.filter((r: any) => r.id.startsWith('demo-'));
+      expect(sampleRunIds).toHaveLength(0);
+      // But total should still include sample count
+      expect(response.total).toBe(151); // 150 real + 1 sample
     });
   });
 

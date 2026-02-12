@@ -452,10 +452,12 @@ export const runStorage = {
   /**
    * Get runs by test case ID
    */
-  async getByTestCase(testCaseId: string, size?: number): Promise<StorageRun[]> {
-    const query = size ? `?size=${size}` : '';
-    const result = await request<{ runs: StorageRun[]; total: number }>('GET', `/runs/by-test-case/${testCaseId}${query}`);
-    return result.runs;
+  async getByTestCase(testCaseId: string, size?: number, from?: number): Promise<{ runs: StorageRun[]; total: number }> {
+    const params = new URLSearchParams();
+    if (size !== undefined) params.set('size', String(size));
+    if (from !== undefined) params.set('from', String(from));
+    const query = params.toString() ? `?${params}` : '';
+    return request<{ runs: StorageRun[]; total: number }>('GET', `/runs/by-test-case/${testCaseId}${query}`);
   },
 
   /**

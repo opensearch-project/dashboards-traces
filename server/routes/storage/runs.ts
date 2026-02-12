@@ -329,12 +329,13 @@ router.post('/api/storage/runs/search', async (req: Request, res: Response) => {
 router.get('/api/storage/runs/by-test-case/:testCaseId', async (req: Request, res: Response) => {
   try {
     const { testCaseId } = req.params;
-    const { size = '100' } = req.query;
+    const { size = '100', from = '0' } = req.query;
 
     // Get sample runs for this test case
     const sampleResults = getSampleRunsByTestCase(testCaseId);
 
     let realData: TestCaseRun[] = [];
+    let realTotal = 0;
 
     // Fetch from OpenSearch if configured
     if (isStorageAvailable(req)) {
@@ -344,11 +345,13 @@ router.get('/api/storage/runs/by-test-case/:testCaseId', async (req: Request, re
           index: INDEX,
           body: {
             size: parseInt(size as string),
+            from: parseInt(from as string),
             sort: [{ createdAt: { order: 'desc' } }],
             query: { term: { testCaseId } },
           },
         });
         realData = result.body.hits?.hits?.map((hit: any) => hit._source) || [];
+        realTotal = (result.body.hits?.total as any)?.value ?? realData.length;
       } catch (e: any) {
         console.warn('[StorageAPI] OpenSearch unavailable:', e.message);
       }
@@ -359,9 +362,12 @@ router.get('/api/storage/runs/by-test-case/:testCaseId', async (req: Request, re
       getTimestampMs(b) - getTimestampMs(a)
     );
 
-    // User data first, then sample data
-    const allData = [...realData, ...sortedSampleResults];
-    res.json({ runs: allData, total: allData.length });
+    // Only append sample data on the first page (from === 0)
+    const fromInt = parseInt(from as string);
+    const allData = fromInt === 0 ? [...realData, ...sortedSampleResults] : realData;
+    const total = realTotal + sampleResults.length;
+
+    res.json({ runs: allData, total, size: parseInt(size as string), from: fromInt });
   } catch (error: any) {
     console.error('[StorageAPI] Get runs by test case failed:', error.message);
     res.status(500).json({ error: error.message });

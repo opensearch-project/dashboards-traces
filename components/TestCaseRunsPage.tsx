@@ -145,7 +145,9 @@ export const TestCaseRunsPage: React.FC = () => {
 
   const [testCase, setTestCase] = useState<TestCase | null>(null);
   const [runs, setRuns] = useState<EvaluationReport[]>([]);
+  const [totalRuns, setTotalRuns] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Modal states
   const [runningTestCase, setRunningTestCase] = useState<TestCase | null>(null);
@@ -164,7 +166,7 @@ export const TestCaseRunsPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const [tc, reports] = await Promise.all([
+      const [tc, { reports, total }] = await Promise.all([
         asyncTestCaseStorage.getById(testCaseId),
         asyncRunStorage.getReportsByTestCase(testCaseId),
       ]);
@@ -180,6 +182,7 @@ export const TestCaseRunsPage: React.FC = () => {
           (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         )
       );
+      setTotalRuns(total);
     } catch (error) {
       console.error('Failed to load test case runs:', error);
     } finally {
@@ -228,6 +231,24 @@ export const TestCaseRunsPage: React.FC = () => {
     setShowEditor(false);
     loadData();
   };
+
+  const loadMore = useCallback(async () => {
+    if (!testCaseId || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const { reports } = await asyncRunStorage.getReportsByTestCase(testCaseId, {
+        limit: 100,
+        offset: runs.length,
+      });
+      setRuns(prev => [...prev, ...reports.sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )]);
+    } catch (error) {
+      console.error('Failed to load more runs:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [testCaseId, runs.length, isLoadingMore]);
 
   if (isLoading) {
     return <PageSkeleton />;
@@ -294,7 +315,7 @@ export const TestCaseRunsPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <Play size={12} />
-              <span>{runs.length} run{runs.length !== 1 ? 's' : ''}</span>
+              <span>{totalRuns} run{totalRuns !== 1 ? 's' : ''}</span>
             </div>
           </div>
 
@@ -402,16 +423,30 @@ export const TestCaseRunsPage: React.FC = () => {
           {runs.length === 0 ? (
             <EmptyState onRun={() => setRunningTestCase(testCase)} />
           ) : (
-            runs.map((run, index) => (
-              <RunCard
-                key={run.id}
-                run={run}
-                isLatest={index === 0}
-                onClick={() => handleRunClick(run)}
-                onDelete={() => handleDeleteRun(run)}
-                isDeleting={deleteState.isDeleting && deleteState.deletingId === run.id}
-              />
-            ))
+            <>
+              {runs.map((run, index) => (
+                <RunCard
+                  key={run.id}
+                  run={run}
+                  isLatest={index === 0}
+                  onClick={() => handleRunClick(run)}
+                  onDelete={() => handleDeleteRun(run)}
+                  isDeleting={deleteState.isDeleting && deleteState.deletingId === run.id}
+                />
+              ))}
+              {runs.length < totalRuns && !isLoadingMore && (
+                <div className="flex justify-center pt-4">
+                  <Button variant="outline" onClick={loadMore}>
+                    Load More
+                  </Button>
+                </div>
+              )}
+              {isLoadingMore && (
+                <div className="flex justify-center pt-4">
+                  <Loader2 size={20} className="animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

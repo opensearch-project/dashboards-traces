@@ -125,7 +125,7 @@ export interface IRunOperations {
   update(id: string, updates: Partial<TestCaseRun>): Promise<TestCaseRun>;
   delete(id: string): Promise<{ deleted: boolean }>;
   search(filters: RunSearchFilters, options?: PaginationOptions): Promise<{ items: TestCaseRun[]; total: number }>;
-  getByTestCase(testCaseId: string, size?: number): Promise<TestCaseRun[]>;
+  getByTestCase(testCaseId: string, size?: number, from?: number): Promise<{ items: TestCaseRun[]; total: number }>;
   getByExperiment(experimentId: string, size?: number): Promise<TestCaseRun[]>;
   getByExperimentRun(experimentId: string, runId: string, size?: number): Promise<TestCaseRun[]>;
   getIterations(experimentId: string, testCaseId: string, experimentRunId?: string): Promise<{

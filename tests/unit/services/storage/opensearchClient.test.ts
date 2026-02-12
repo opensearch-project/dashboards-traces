@@ -597,14 +597,14 @@ describe('OpenSearch Storage Client', () => {
     });
 
     describe('getByTestCase', () => {
-      it('should get runs by test case ID', async () => {
+      it('should get runs by test case ID and return runs with total', async () => {
         mockFetch.mockResolvedValue(
           mockSuccessResponse({ runs: [mockRun], total: 1 })
         );
 
         const result = await runStorage.getByTestCase('tc-123');
 
-        expect(result).toEqual([mockRun]);
+        expect(result).toEqual({ runs: [mockRun], total: 1 });
         expect(mockFetch).toHaveBeenCalledWith(
           'http://localhost:4001/api/storage/runs/by-test-case/tc-123',
           expect.any(Object)
@@ -620,6 +620,20 @@ describe('OpenSearch Storage Client', () => {
 
         expect(mockFetch).toHaveBeenCalledWith(
           'http://localhost:4001/api/storage/runs/by-test-case/tc-123?size=50',
+          expect.any(Object)
+        );
+      });
+
+      it('should apply from parameter for pagination', async () => {
+        mockFetch.mockResolvedValue(
+          mockSuccessResponse({ runs: [mockRun], total: 150 })
+        );
+
+        const result = await runStorage.getByTestCase('tc-123', 100, 100);
+
+        expect(result).toEqual({ runs: [mockRun], total: 150 });
+        expect(mockFetch).toHaveBeenCalledWith(
+          'http://localhost:4001/api/storage/runs/by-test-case/tc-123?size=100&from=100',
           expect.any(Object)
         );
       });
