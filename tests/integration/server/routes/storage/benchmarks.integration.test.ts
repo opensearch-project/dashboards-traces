@@ -264,3 +264,111 @@ describe('Benchmark Cancel Integration Tests', () => {
     expect(error.error).toBe('Run not found or already completed');
   });
 });
+
+describe('Benchmark Export Integration Tests', () => {
+  let backendAvailable = false;
+  let exportTestCaseId: string | null = null;
+  let exportBenchmarkId: string | null = null;
+
+  // Known values we create and then assert on export
+  const EXPORT_TEST_CASE_INPUT = {
+    name: 'Export Integration Test Case',
+    category: 'RCA',
+    difficulty: 'Medium',
+    initialPrompt: 'Investigate why the service is returning 500 errors',
+    context: [{ description: 'Service info', value: 'The order-service runs on port 8080' }],
+    expectedOutcomes: ['Query error logs', 'Identify root cause'],
+  };
+
+  beforeAll(async () => {
+    backendAvailable = await checkBackend();
+    if (!backendAvailable) {
+      console.warn('Backend not available - skipping export integration tests');
+      return;
+    }
+
+    // Create a test case with known content
+    const tcResponse = await fetch(`${BASE_URL}/api/storage/test-cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(EXPORT_TEST_CASE_INPUT),
+    });
+    if (!tcResponse.ok) throw new Error(`Failed to create test case: ${tcResponse.statusText}`);
+    const tc = await tcResponse.json();
+    exportTestCaseId = tc.id;
+
+    // Create a benchmark referencing that test case
+    const benchResponse = await fetch(`${BASE_URL}/api/storage/benchmarks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Export Integration Benchmark',
+        description: 'Benchmark for testing export round-trip',
+        testCaseIds: [exportTestCaseId],
+        runs: [],
+        currentVersion: 1,
+        versions: [{
+          version: 1,
+          createdAt: new Date().toISOString(),
+          testCaseIds: [exportTestCaseId],
+        }],
+      }),
+    });
+    if (!benchResponse.ok) throw new Error(`Failed to create benchmark: ${benchResponse.statusText}`);
+    const bench = await benchResponse.json();
+    exportBenchmarkId = bench.id;
+  }, 30000);
+
+  afterAll(async () => {
+    if (!backendAvailable) return;
+    if (exportBenchmarkId) await deleteBenchmark(exportBenchmarkId);
+    if (exportTestCaseId) await deleteTestCase(exportTestCaseId);
+  }, 30000);
+
+  it('should export the actual test case content created via OpenSearch', async () => {
+    if (!backendAvailable || !exportBenchmarkId) {
+      console.warn('Skipping test - backend not available or benchmark not created');
+      return;
+    }
+
+    const response = await fetch(`${BASE_URL}/api/storage/benchmarks/${exportBenchmarkId}/export`);
+    expect(response.ok).toBe(true);
+
+    // Verify headers
+    const contentDisposition = response.headers.get('content-disposition');
+    expect(contentDisposition).toContain('attachment');
+    expect(contentDisposition).toContain('.json');
+    expect(response.headers.get('content-type')).toContain('application/json');
+
+    // Verify body is a non-empty JSON array
+    const data = await response.json();
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toHaveLength(1);
+
+    // Verify the exported content matches what we created
+    const exported = data[0];
+    expect(exported.name).toBe(EXPORT_TEST_CASE_INPUT.name);
+    expect(exported.category).toBe(EXPORT_TEST_CASE_INPUT.category);
+    expect(exported.difficulty).toBe(EXPORT_TEST_CASE_INPUT.difficulty);
+    expect(exported.initialPrompt).toBe(EXPORT_TEST_CASE_INPUT.initialPrompt);
+    expect(exported.expectedOutcomes).toEqual(EXPORT_TEST_CASE_INPUT.expectedOutcomes);
+    expect(exported.context).toEqual(EXPORT_TEST_CASE_INPUT.context);
+
+    // Must NOT contain system fields
+    expect(exported.id).toBeUndefined();
+    expect(exported.labels).toBeUndefined();
+    expect(exported.createdAt).toBeUndefined();
+    expect(exported.versions).toBeUndefined();
+    expect(exported.currentVersion).toBeUndefined();
+  }, 30000);
+
+  it('should return 404 for non-existent benchmark', async () => {
+    if (!backendAvailable) {
+      console.warn('Skipping test - backend not available');
+      return;
+    }
+
+    const response = await fetch(`${BASE_URL}/api/storage/benchmarks/nonexistent-id/export`);
+    expect(response.status).toBe(404);
+  });
+});

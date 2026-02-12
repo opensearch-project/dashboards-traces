@@ -609,6 +609,25 @@ export class ApiClient {
   }
 
   /**
+   * Export benchmark test cases as import-compatible JSON
+   */
+  async exportBenchmark(benchmarkId: string): Promise<object[]> {
+    const res = await fetch(
+      `${this.baseUrl}/api/storage/benchmarks/${encodeURIComponent(benchmarkId)}/export`
+    );
+
+    if (res.status === 404) {
+      throw new Error(`Benchmark not found: ${benchmarkId}`);
+    }
+
+    if (!res.ok) {
+      throw new Error(`Failed to export benchmark: ${res.status} ${res.statusText}`);
+    }
+
+    return res.json();
+  }
+
+  /**
    * Create a new benchmark
    */
   async createBenchmark(input: {

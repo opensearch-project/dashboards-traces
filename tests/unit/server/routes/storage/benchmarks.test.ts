@@ -68,6 +68,18 @@ jest.mock('@/cli/demo/sampleTestCases', () => ({
     {
       id: 'demo-test-case-1',
       name: 'Sample Test Case 1',
+      description: 'A sample test case',
+      category: 'RCA',
+      difficulty: 'Easy',
+      initialPrompt: 'Test prompt',
+      context: [],
+      expectedOutcomes: ['Expected outcome'],
+      labels: [],
+      currentVersion: 1,
+      versions: [],
+      isPromoted: true,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
     },
   ],
 }));
@@ -255,6 +267,162 @@ describe('Experiments Storage Routes', () => {
 
       const { req, res } = createMocks({ id: 'exp-123' });
       const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id');
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+  });
+
+  describe('GET /api/storage/benchmarks/:id/export', () => {
+    it('should export test cases from sample benchmark', async () => {
+      const { req, res } = createMocks({ id: 'demo-experiment-1' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+      await handler(req, res);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        expect.stringContaining('attachment; filename=')
+      );
+      const exportedData = (res.json as jest.Mock).mock.calls[0][0];
+      expect(Array.isArray(exportedData)).toBe(true);
+      expect(exportedData.length).toBeGreaterThan(0);
+      expect(exportedData[0]).toHaveProperty('name');
+      expect(exportedData[0]).toHaveProperty('category');
+      expect(exportedData[0]).toHaveProperty('difficulty');
+      expect(exportedData[0]).toHaveProperty('initialPrompt');
+      expect(exportedData[0]).toHaveProperty('expectedOutcomes');
+      // Should not have system fields
+      expect(exportedData[0].id).toBeUndefined();
+      expect(exportedData[0].labels).toBeUndefined();
+    });
+
+    it('should export test cases from OpenSearch benchmark', async () => {
+      mockGet.mockResolvedValue({
+        body: {
+          found: true,
+          _source: {
+            id: 'exp-123',
+            name: 'Real Benchmark',
+            testCaseIds: ['tc-real-1'],
+            runs: [],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        },
+      });
+      mockSearch.mockResolvedValue({
+        body: {
+          hits: { hits: [] },
+          aggregations: {
+            by_id: {
+              buckets: [
+                {
+                  key: 'tc-real-1',
+                  latest: {
+                    hits: {
+                      hits: [
+                        {
+                          _source: {
+                            id: 'tc-real-1',
+                            name: 'Real Test Case',
+                            description: 'Desc',
+                            category: 'RCA',
+                            difficulty: 'Medium',
+                            initialPrompt: 'Real prompt',
+                            context: [],
+                            expectedOutcomes: ['Real outcome'],
+                            version: 1,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const { req, res } = createMocks({ id: 'exp-123' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+      await handler(req, res);
+
+      const exportedData = (res.json as jest.Mock).mock.calls[0][0];
+      expect(Array.isArray(exportedData)).toBe(true);
+      expect(exportedData).toHaveLength(1);
+      expect(exportedData[0].name).toBe('Real Test Case');
+      expect(exportedData[0].initialPrompt).toBe('Real prompt');
+    });
+
+    it('should return 404 when benchmark not found', async () => {
+      mockGet.mockResolvedValue({
+        body: { found: false },
+      });
+
+      const { req, res } = createMocks({ id: 'exp-nonexistent' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Benchmark not found' });
+    });
+
+    it('should return 404 for non-existent sample benchmark', async () => {
+      const { req, res } = createMocks({ id: 'demo-nonexistent' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Benchmark not found' });
+    });
+
+    it('should return empty array when benchmark has no resolvable test cases', async () => {
+      mockGet.mockResolvedValue({
+        body: {
+          found: true,
+          _source: {
+            id: 'exp-empty',
+            name: 'Empty Benchmark',
+            testCaseIds: ['tc-nonexistent'],
+            runs: [],
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        },
+      });
+      mockSearch.mockResolvedValue({
+        body: {
+          hits: { hits: [] },
+          aggregations: {
+            by_id: {
+              buckets: [],
+            },
+          },
+        },
+      });
+
+      const { req, res } = createMocks({ id: 'exp-empty' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+      await handler(req, res);
+
+      const exportedData = (res.json as jest.Mock).mock.calls[0][0];
+      expect(Array.isArray(exportedData)).toBe(true);
+      expect(exportedData).toHaveLength(0);
+    });
+
+    it('should handle 404 error from OpenSearch', async () => {
+      const error: any = new Error('Not found');
+      error.meta = { statusCode: 404 };
+      mockGet.mockRejectedValue(error);
+
+      const { req, res } = createMocks({ id: 'exp-123' });
+      const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
 
       await handler(req, res);
 
@@ -698,6 +866,16 @@ describe('Experiments Storage Routes - OpenSearch not configured', () => {
     await handler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('GET /api/storage/benchmarks/:id/export should return 404 for non-sample ID when not configured', async () => {
+    const { req, res } = createMocks({ id: 'exp-123' });
+    const handler = getRouteHandler(benchmarksRoutes, 'get', '/api/storage/benchmarks/:id/export');
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Benchmark not found' });
   });
 
   it('POST /api/storage/benchmarks should return error when not configured', async () => {

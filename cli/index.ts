@@ -22,8 +22,10 @@ import {
   createListCommand,
   createRunCommand,
   createBenchmarkCommand,
+  createExportCommand,
   createDoctorCommand,
   createInitCommand,
+  createMigrateCommand,
 } from './commands/index.js';
 
 // Get package.json for version
@@ -133,8 +135,10 @@ program.action(async (options) => {
 program.addCommand(createListCommand());
 program.addCommand(createRunCommand());
 program.addCommand(createBenchmarkCommand());
+program.addCommand(createExportCommand());
 program.addCommand(createDoctorCommand());
 program.addCommand(createInitCommand());
+program.addCommand(createMigrateCommand());
 
 // Add serve command as an alias for the default action
 program

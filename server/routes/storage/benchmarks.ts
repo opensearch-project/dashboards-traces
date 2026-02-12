@@ -20,6 +20,7 @@ import {
   createCancellationToken,
   CancellationToken,
 } from '../../../services/benchmarkRunner.js';
+import { convertTestCasesToExportFormat, generateExportFilename } from '../../../lib/benchmarkExport.js';
 
 /**
  * Normalize benchmark data for legacy documents without version fields.
@@ -412,6 +413,105 @@ router.get('/api/storage/benchmarks/:id', async (req: Request, res: Response) =>
       return res.status(404).json({ error: 'Benchmark not found' });
     }
     console.error('[StorageAPI] Get benchmark failed:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/storage/benchmarks/:id/export - Export test cases as import-compatible JSON
+router.get('/api/storage/benchmarks/:id/export', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    let benchmark: Benchmark | null = null;
+
+    // Check sample data first
+    if (isSampleId(id)) {
+      const sample = SAMPLE_BENCHMARKS.find(bench => bench.id === id);
+      if (sample) {
+        benchmark = normalizeBenchmark(sample);
+      }
+    } else if (isStorageAvailable(req)) {
+      try {
+        const client = requireStorageClient(req);
+        const result = await client.get({ index: INDEX, id });
+        if (result.body.found) {
+          benchmark = normalizeBenchmark(result.body._source);
+        }
+      } catch (error: any) {
+        if (error.meta?.statusCode === 404) {
+          return res.status(404).json({ error: 'Benchmark not found' });
+        }
+        throw error;
+      }
+    }
+
+    if (!benchmark) {
+      return res.status(404).json({ error: 'Benchmark not found' });
+    }
+
+    // Resolve test case IDs to full test case objects
+    const testCaseIds = benchmark.testCaseIds || [];
+    const fullTestCases: TestCase[] = [];
+
+    // Fetch from sample data
+    const sampleTestCases = SAMPLE_TEST_CASES.filter(
+      (tc: any) => testCaseIds.includes(tc.id)
+    ) as unknown as TestCase[];
+    fullTestCases.push(...sampleTestCases);
+
+    // Fetch remaining from OpenSearch
+    const resolvedIds = new Set(fullTestCases.map(tc => tc.id));
+    const unresolvedIds = testCaseIds.filter(id => !resolvedIds.has(id));
+
+    if (unresolvedIds.length > 0 && isStorageAvailable(req)) {
+      try {
+        const client = requireStorageClient(req);
+
+        // Use aggregation to get latest version of each test case (same pattern as testCases route)
+        // Docs are stored as {id}-v{version}, so we aggregate by id and take the top hit per id
+        const result = await client.search({
+          index: INDEXES.testCases,
+          body: {
+            size: 0,
+            aggs: {
+              by_id: {
+                terms: { field: 'id', size: unresolvedIds.length },
+                aggs: {
+                  latest: {
+                    top_hits: {
+                      size: 1,
+                      sort: [{ version: { order: 'desc' } }],
+                    },
+                  },
+                },
+              },
+            },
+            query: {
+              terms: { id: unresolvedIds },
+            },
+          },
+        });
+
+        const buckets = (result.body.aggregations?.by_id as any)?.buckets || [];
+        for (const bucket of buckets) {
+          const tc = bucket.latest.hits.hits[0]?._source as TestCase;
+          if (tc) {
+            fullTestCases.push(tc);
+          }
+        }
+      } catch (e: any) {
+        console.warn('[StorageAPI] Failed to fetch test cases for export:', e.message);
+      }
+    }
+
+    // Convert to export format
+    const exportData = convertTestCasesToExportFormat(fullTestCases);
+    const filename = generateExportFilename(benchmark.name);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(exportData);
+  } catch (error: any) {
+    console.error('[StorageAPI] Export benchmark failed:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

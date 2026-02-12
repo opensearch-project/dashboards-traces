@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Eye, Calendar, FlaskConical, RefreshCw, CheckCircle, CheckCircle2, XCircle, Loader2, Circle, X, Play, Pencil, StopCircle, Ban, Upload } from 'lucide-react';
+import { Plus, Trash2, Eye, Calendar, FlaskConical, RefreshCw, CheckCircle, CheckCircle2, XCircle, Loader2, Circle, X, Play, Pencil, StopCircle, Ban, Upload, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -185,6 +185,27 @@ export const BenchmarksPage: React.FC = () => {
     } finally {
       setIsImporting(false);
       event.target.value = ''; // Reset for re-upload
+    }
+  };
+
+  const handleExportBenchmark = async (bench: Benchmark) => {
+    try {
+      const res = await fetch(`/api/storage/benchmarks/${bench.id}/export`);
+      if (!res.ok) {
+        throw new Error(`Export failed: ${res.statusText}`);
+      }
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${bench.name.replace(/[^a-z0-9_\-\s]/gi, '').replace(/\s+/g, '-').toLowerCase() || 'benchmark-export'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export benchmark:', error);
     }
   };
 
@@ -674,6 +695,18 @@ export const BenchmarksPage: React.FC = () => {
                           title="Edit benchmark"
                         >
                           <Pencil size={14} />
+                        </Button>
+                      )}
+                      {/* Export button - downloads test cases as JSON */}
+                      {!isRunning && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleExportBenchmark(bench)}
+                          title="Export test cases as JSON"
+                          data-testid="export-benchmark-button"
+                        >
+                          <Download size={14} />
                         </Button>
                       )}
                       {/* Run button - creates new run */}
