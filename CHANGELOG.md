@@ -10,6 +10,13 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ## [Unreleased]
 
 ### Added
+- Pagination and total count support for benchmarks, test case runs, and reports ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- Lazy backfill for benchmark run stats and `migrate` CLI command for denormalized `RunStats` ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- Benchmark export to JSON format for sharing and reproducibility ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- JSON import for test cases with schema validation and error handling ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- File-backed storage for custom agent endpoints with persistence ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- `BeforeRequestContext` and `AgentHooks` hook type exports in public API ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- Integration tests for run storage, benchmark versioning, and benchmark import ([#35](https://github.com/opensearch-project/agent-health/pull/35))
 - CLI commands (`run`, `list`, `benchmark`, `doctor`, `init`) for headless agent evaluation ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
 - Pluggable connector architecture supporting AG-UI, REST, subprocess, and Claude Code agents ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
 - TypeScript configuration file support with `defineConfig()` helper ([#33](https://github.com/opensearch-project/dashboards-traces/pull/33))
@@ -46,6 +53,9 @@ Inspired by [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Enhanced storage route tests with additional coverage
 
 ### Changed
+- Integrated custom agents from JSON-backed store into benchmark execution ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- Updated observability agent benchmark scenarios for OTEL demo ([#35](https://github.com/opensearch-project/agent-health/pull/35))
+- Optimized run statistics calculations to avoid expensive per-request aggregation ([#35](https://github.com/opensearch-project/agent-health/pull/35))
 - Enhanced Playwright configuration for CI/local development environments ([#24](https://github.com/opensearch-project/dashboards-traces/pull/24))
 - Updated navigation to distinguish "Agent Traces" (table view) from "Live Traces" (real-time) ([#25](https://github.com/opensearch-project/dashboards-traces/pull/25))
 - Enhanced CORS middleware setup for better cross-origin support ([#20](https://github.com/opensearch-project/dashboards-traces/pull/20))
