@@ -39,6 +39,12 @@ export type {
   JudgeConfig,
 } from './config/types.js';
 
+// Hook types (for writing typed hooks in agent-health.config.ts)
+export type {
+  BeforeRequestContext,
+  AgentHooks,
+} from '../types/index.js';
+
 // Connector types (for custom connector implementations)
 export type {
   AgentConnector,
